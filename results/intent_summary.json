@@ -1,0 +1,138 @@
+{
+  "groq/llama-3.1-8b-instant": {
+    "zero_shot": {
+      "n": 1000,
+      "n_scored": 1000,
+      "accuracy": 0.602,
+      "macro_f1": 0.5833,
+      "unparsed_rate": 0.004,
+      "error_rate": 0.0
+    },
+    "few_shot": {
+      "n": 34,
+      "n_scored": 33,
+      "accuracy": 0.4545,
+      "macro_f1": 0.4542,
+      "unparsed_rate": 0.0606,
+      "error_rate": 0.0294
+    }
+  },
+  "claude-haiku-4-5-20251001": {
+    "zero_shot": {
+      "n": 1000,
+      "n_scored": 1000,
+      "accuracy": 0.777,
+      "macro_f1": 0.7572,
+      "unparsed_rate": 0.001,
+      "error_rate": 0.0
+    },
+    "few_shot": {
+      "n": 1000,
+      "n_scored": 1000,
+      "accuracy": 0.793,
+      "macro_f1": 0.7686,
+      "unparsed_rate": 0.006,
+      "error_rate": 0.0
+    }
+  },
+  "gemini/gemini-flash-latest": {
+    "zero_shot": {
+      "n": 5,
+      "n_scored": 5,
+      "accuracy": 0.0,
+      "macro_f1": 0.0,
+      "unparsed_rate": 1.0,
+      "error_rate": 0.0
+    },
+    "few_shot": {
+      "n": 5,
+      "n_scored": 5,
+      "accuracy": 0.0,
+      "macro_f1": 0.0,
+      "unparsed_rate": 1.0,
+      "error_rate": 0.0
+    }
+  },
+  "gemini/gemini-flash-lite-latest": {
+    "zero_shot": {
+      "n": 487,
+      "n_scored": 459,
+      "accuracy": 0.7974,
+      "macro_f1": 0.7749,
+      "unparsed_rate": 0.0,
+      "error_rate": 0.0575
+    },
+    "few_shot": {
+      "n": 5,
+      "n_scored": 5,
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "unparsed_rate": 0.0,
+      "error_rate": 0.0
+    }
+  },
+  "groq/llama-3.3-70b-versatile": {
+    "zero_shot": {
+      "n": 17,
+      "n_scored": 17,
+      "accuracy": 0.8235,
+      "macro_f1": 0.8,
+      "unparsed_rate": 0.0,
+      "error_rate": 0.0
+    }
+  },
+  "mistral/mistral-small-latest": {
+    "zero_shot": {
+      "n": 1000,
+      "n_scored": 1000,
+      "accuracy": 0.699,
+      "macro_f1": 0.6805,
+      "unparsed_rate": 0.003,
+      "error_rate": 0.0
+    },
+    "few_shot": {
+      "n": 1000,
+      "n_scored": 1000,
+      "accuracy": 0.716,
+      "macro_f1": 0.694,
+      "unparsed_rate": 0.002,
+      "error_rate": 0.0
+    }
+  },
+  "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo": {
+    "zero_shot": {
+      "n": 1000,
+      "n_scored": 1000,
+      "accuracy": 0.746,
+      "macro_f1": 0.7144,
+      "unparsed_rate": 0.0,
+      "error_rate": 0.0
+    },
+    "few_shot": {
+      "n": 1000,
+      "n_scored": 1000,
+      "accuracy": 0.757,
+      "macro_f1": 0.7253,
+      "unparsed_rate": 0.002,
+      "error_rate": 0.0
+    }
+  },
+  "claude-sonnet-5": {
+    "zero_shot": {
+      "n": 1000,
+      "n_scored": 1000,
+      "accuracy": 0.807,
+      "macro_f1": 0.798,
+      "unparsed_rate": 0.029,
+      "error_rate": 0.0
+    },
+    "few_shot": {
+      "n": 1000,
+      "n_scored": 1000,
+      "accuracy": 0.811,
+      "macro_f1": 0.7931,
+      "unparsed_rate": 0.001,
+      "error_rate": 0.0
+    }
+  }
+}

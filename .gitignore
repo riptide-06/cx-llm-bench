@@ -1,0 +1,44 @@
+# ---- credentials: never commit ----
+.env
+.env.*
+!.env.example
+*.env.bak
+*.pem
+*.key
+
+# ---- environment / build noise ----
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# ---- large or non-public artifacts ----
+# Cache is large (~10k files) and fully reproducible from the code; it is
+# available on request rather than committed. Raw logs ARE committed - they are
+# the data-availability artifact the paper cites.
+cache/
+
+# Raw provider stdout/stderr. Verified free of credentials, but it is noisy
+# build output rather than a result, so it is not part of the public record.
+results/run_logs/
+
+# Expert rating is still in progress. The sheet and its blinding key are held
+# back until review completes; anonymized results will be added afterwards.
+results/expert_rating_sheet.csv
+results/expert_rating_key.csv
+
+# Held back for the SAME reason: both map each generated summary to the model
+# that produced it. Publishing them would let anyone match a summary's text
+# back to its model and de-blind the in-progress expert evaluation - defeating
+# the point of withholding the key above. Release with the rating results.
+# (Aggregate summarization metrics are still public in results/tables.md.)
+results/summ_outputs.json
+results/raw/summ.jsonl
+
+# Working draft: the author line still contains unfilled placeholders that
+# would publicly identify a co-author by family relationship. Held back until
+# the manuscript's authorship is finalized.
+paper/
+
+# Internal working notes, not part of the published artifact.
+dad_rating_rubric.md

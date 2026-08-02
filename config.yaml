@@ -1,0 +1,165 @@
+# Model lineup: balanced open-weights vs proprietary BY DESIGN (this is the
+# paper's core comparison). Comment out models whose API keys are missing,
+# but keep >=2 per category. If a model ID is deprecated, swap in the
+# closest current equivalent from the same family and note it in NOTES.md.
+#
+# COST POSTURE (see results/NOTES.md): free-tier providers are preferred.
+# Groq covers both open-weights models at $0 and Gemini covers one proprietary
+# slot at $0; only claude-haiku is billed (~$1.95). Free tiers are metered by
+# REQUESTS PER DAY, not just per minute, so the run is deliberately slow rather
+# than expensive. See `rate_limits` below.
+#
+# STATUS 2026-07-31: every id below verified live (Phase 0 step 2).
+#   - gpt-4o-mini DROPPED: OPENAI_API_KEY authenticates but the account has no
+#     credits ("no credits remaining"). Replaced by Gemini.
+#   - mistral-small DROPPED: no MISTRAL_API_KEY exists. Replaced by a second
+#     Groq-hosted open-weights model (llama-3.1-8b-instant).
+#   - gemini-2.0-flash DROPPED: this key's project has free-tier quota
+#     *provisioned at zero* ("limit: 0") for every pinned 2.0/2.5 id, so they
+#     429 on the first call. The `-latest` aliases DO have quota and are used
+#     instead. gemini-2.5-flash{,-lite} additionally 404 as "no longer
+#     available to new users".
+models:
+  # --- proprietary API models ---
+  - claude-haiku-4-5-20251001               # ANTHROPIC_API_KEY (paid, ~$1.62 actual)
+  - claude-sonnet-5                         # ANTHROPIC_API_KEY (paid, ~$2.03)
+  # Sonnet runs ZERO-SHOT INTENT ONLY (plus all summarization). Few-shot was
+  # unaffordable: Sonnet 5 uses the post-4.7 tokenizer, which produces ~34%
+  # more tokens for the same text (measured: 895 vs Haiku's 670 on the same
+  # prompt), so the full workload prices at ~$4.27 against ~$3.38 of remaining
+  # Anthropic credit. It is reported at its own n for the conditions it ran.
+  - gemini/gemini-flash-lite-latest         # GEMINI_API_KEY (free tier)
+  # Gemini is INCOMPLETE and stays that way: the free tier is capped at 500
+  # requests/DAY for gemini-3.5-flash-lite ("limit: 500" in the 429 body), so
+  # the 2,100-call workload needs 4+ days. Its 467 completed zero-shot intent
+  # calls are a valid seed-42 random subsample and are reported as a
+  # SUPPLEMENTARY data point at their own n, excluded from the headline gap.
+  # - gpt-4o-mini                           # OPENAI_API_KEY: account out of credits
+  # - gemini/gemini-flash-latest  EXCLUDED. Resolves to gemini-3.6-flash, a
+  #   THINKING model: it spends the whole completion budget reasoning and
+  #   returns a truncated fragment. Measured on the real intent prompt:
+  #   max_tokens=30 -> 26 tok -> ' card_';  max_tokens=128 -> 124 tok -> 'card'.
+  #   Both unparseable, so it scored 0.0 accuracy / 1.0 unparsed on the smoke
+  #   test. Making it answer needs a much larger per-call budget against a
+  #   5 req/min free tier, i.e. days of runtime for one model. Its 10 smoke
+  #   rows are left in results/raw/intent.jsonl as a record but it is not a
+  #   reported model. See NOTES.md.
+  # --- open-weights (self-hostable) models ---
+  - together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo  # TOGETHER_API_KEY (paid ~$1.24); headline open model
+  - mistral/mistral-small-latest            # MISTRAL_API_KEY (free); Apache-2.0
+  - groq/llama-3.1-8b-instant               # GROQ_API_KEY  (free); "cheap self-hosting"
+  # groq/llama-3.3-70b-versatile is NOT a reported model. Groq's free tier caps
+  # it at 1,000 req/day (~52h), which is not runnable on a laptop that cannot
+  # stay awake. The paid-endpoint rule was overridden for this model only, and
+  # it moved to Together. The partial Groq run is retained in
+  # results/raw/*.jsonl purely as the cross-provider consistency baseline
+  # (see NOTES.md §10) - same model family, different serving stack.
+  # Together's non-quantized meta-llama/Llama-3.3-70B-Instruct is NOT
+  # serverless on this account ("Unable to access non-serverless model"), so
+  # the FP8 -Turbo build is what is served.
+  # NOT AVAILABLE: llama-3.3-70b via Cerebras. The Cerebras free tier was added
+  # on 2026-07-31 specifically to run the 70B inside 24h, but that account's
+  # catalogue is only {zai-glm-4.7, gpt-oss-120b, gemma-4-31b} - no Llama of any
+  # size (HTTP 404 model_not_found). So the 70B runs on Groq at 1,000 req/day
+  # (~2.1 days) and no cross-provider consistency check is possible for it.
+  # Rejected open-weights candidates (both live on Groq, both unusable here):
+  # - groq/qwen/qwen3.6-27b        reasoning model; emits <think> blocks and
+  # - groq/openai/gpt-oss-120b     needs max_tokens>=512 to reach a label, so
+  #   it cannot answer the intent task under the runner's max_tokens=30.
+  # Dropped for cost: Together AI has no free tier (~$2.16 for a third
+  # open-weights model) and no TOGETHER_API_KEY exists.
+  # - together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo   # TOGETHER_API_KEY
+
+# Used by reporting to compute the open-vs-proprietary gap.
+open_weights_models:
+  - together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo
+  - mistral/mistral-small-latest
+  - groq/llama-3.1-8b-instant
+  - groq/llama-3.3-70b-versatile   # baseline only; not in `models`
+  # - together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo
+
+# Minimum seconds between consecutive calls to the same model. Keys are looked
+# up per exact model id, then per provider prefix, then `default`.
+#
+# The Groq values are set to that model's exact free-tier refill rate, read
+# from live x-ratelimit headers on 2026-07-31 (86400s / requests-per-day):
+#   llama-3.3-70b-versatile  1,000 req/day -> 86.4s  (12,000 tokens/min)
+#   llama-3.1-8b-instant    14,400 req/day ->  6.0s  ( 6,000 tokens/min)
+# Pacing at the refill rate consumes the daily quota smoothly and never 429s;
+# going faster would exhaust the day's quota and stall the run in backoff.
+# The two Groq models have independent quotas, so run them as parallel
+# processes via `--models` rather than sequentially.
+rate_limits:
+  groq/llama-3.3-70b-versatile: 87.0   # 1,000 req/day; the long pole (~3 days)
+  # 14,400 req/day is not the constraint; the 6,000 TOKENS/min cap is. Few-shot
+  # prompts run ~620 tokens, so the original 6.0s (10 calls/min ~= 6,200 TPM)
+  # sat just OVER the ceiling and the model 429'd into repeated 60s backoffs,
+  # collapsing throughput to ~0.7 calls/min. 8.5s = ~7 calls/min ~= 4,400 TPM,
+  # which leaves real headroom.
+  # 12s. NOTE: for this model the binding constraint turned out to be Groq's
+  # 500,000 tokens-per-DAY cap, not tokens-per-minute - the 1000 zero-shot
+  # calls spent essentially the whole daily budget, and everything after that
+  # ran at the refill rate (~5.8 tok/sec) regardless of this delay. This value
+  # keeps per-minute usage comfortably under the 6,000 TPM cap; it cannot
+  # help once the daily budget is gone. See NOTES.md section 5.
+  groq/llama-3.1-8b-instant: 12.0
+  groq: 87.0                           # conservative fallback for any Groq id
+  # Gemini sends no ratelimit headers; these come from bursting until 429 on
+  # 2026-07-31. flash-latest reported "limit: 5" requests/minute -> 12s, +1s
+  # headroom. flash-lite-latest did not cap at 14 rapid calls, so it is set to
+  # a conservative 5s. A per-DAY ceiling could not be measured without burning
+  # the day's quota; if one is hit the run logs errors, and because failed
+  # calls are never cached a rerun resumes exactly where it stopped.
+  gemini/gemini-flash-lite-latest: 5.0
+  gemini: 13.0             # conservative fallback for any Gemini id
+  # Mistral free tier, from live headers 2026-07-31: 50 req/min and 50,000
+  # tokens/min. At ~516 prompt tokens/call the request cap binds first
+  # (50/min -> 1.2s); 1.3s leaves headroom.
+  mistral/mistral-small-latest: 1.3
+  mistral: 1.3
+  # Together is a PAID endpoint with generous limits; measured ~0.9s/call
+  # latency, so this delay is not the binding constraint. ~35 min for 2,100
+  # calls. Raise if 429s appear in results/run_logs/.
+  together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo: 0.25
+  together_ai: 0.25
+  anthropic: 1.2
+  claude-haiku-4-5-20251001: 1.2
+  gpt-4o-mini: 0.2         # paid, generous limits
+  default: 1.0
+
+# Reduced from 1500/120 on 2026-07-31 to fit the open-weights half into ~24h
+# against free-tier daily request caps (not for cost — cost is ~$2). Both
+# conditions (zero-shot AND few-shot) are retained. The reduced test set is a
+# strict PREFIX of the 1500 (same seed=42 shuffle), and the few-shot exemplars
+# are drawn after the test shuffle so they are unchanged, which means every
+# cached call from a larger run stays valid.
+# Models that ran a DELIBERATELY reduced scope. They are reported at their own
+# n, clearly labelled, and excluded from the headline compliance gap - but they
+# do NOT make the whole report "preliminary", because nothing further is
+# expected from them. A model missing here that is short of its full workload
+# is treated as still-running and DOES trigger the preliminary banner.
+partial_models:
+  # claude-sonnet-5 was here while its few-shot arm was unaffordable. The user
+  # added Anthropic credit on 2026-08-01 and few-shot then ran to completion
+  # (1000/1000, 0 errors, $2.31), so Sonnet now has the FULL workload and is
+  # a normal gap-eligible model in both conditions.
+  gemini/gemini-flash-lite-latest: >-
+    zero-shot intent only, at a reduced n (~459 of 1000); Gemini's free tier
+    caps gemini-3.5-flash-lite at 500 requests/day, so the full workload needs
+    4+ days. The completed calls are a valid seed-42 random subsample.
+  groq/llama-3.1-8b-instant: >-
+    zero-shot intent (full n=1000) plus full summarization; few-shot omitted.
+    Groq's free tier meters this model at 500,000 tokens per DAY, and the 1000
+    zero-shot calls (~500 tokens each) consumed essentially all of it
+    ("Limit 500000, Used 499554"), leaving nothing for the ~645-token few-shot
+    prompts; the remaining 967 projected to ~32h of refill. Zero-shot completed
+    at full n and is gap-eligible. See NOTES.md section 5.
+
+intent:
+  n_test: 1000
+  few_shot_k: 5
+
+summ:
+  n_dialogues: 100
+
+budget_cap_usd: 30

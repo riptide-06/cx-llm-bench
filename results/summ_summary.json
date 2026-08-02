@@ -1,0 +1,55 @@
+{
+  "dataset": "dialogsum",
+  "n_dialogues": 100,
+  "models": {
+    "claude-haiku-4-5-20251001": {
+      "rouge1": 0.1953,
+      "rouge2": 0.0482,
+      "rougeL": 0.1459,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "gemini/gemini-flash-lite-latest": {
+      "rouge1": 0.1578,
+      "rouge2": 0.0185,
+      "rougeL": 0.0891,
+      "n_scored": 3,
+      "error_rate": 0.0
+    },
+    "groq/llama-3.1-8b-instant": {
+      "rouge1": 0.1993,
+      "rouge2": 0.057,
+      "rougeL": 0.1423,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "groq/llama-3.3-70b-versatile": {
+      "rouge1": 0.1949,
+      "rouge2": 0.0504,
+      "rougeL": 0.1434,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "mistral/mistral-small-latest": {
+      "rouge1": 0.2327,
+      "rouge2": 0.0633,
+      "rougeL": 0.169,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo": {
+      "rouge1": 0.1934,
+      "rouge2": 0.0489,
+      "rougeL": 0.1416,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "claude-sonnet-5": {
+      "rouge1": 0.2257,
+      "rouge2": 0.0631,
+      "rougeL": 0.1615,
+      "n_scored": 100,
+      "error_rate": 0.0
+    }
+  }
+}
