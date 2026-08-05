@@ -239,8 +239,14 @@ def main():
 
     # PRIMARY first — order matters, it drives the order of both the tables and
     # the compliance-gap rows.
+    # TweetSumm is scored MULTI-REFERENCE where available (max over its ~3
+    # human summaries) — the fairer measurement and the primary numbers. The
+    # single-reference TweetSumm scores are kept in NOTES.md §11 for continuity
+    # with DialogSum, which has only one reference and cannot be scored this way.
+    _tw_multi = _load("summ_tweetsumm_multiref_summary.json")
     SUMM_DATASETS = [
-        {"data": _load("summ_tweetsumm_summary.json"), "key": "tweetsumm",
+        {"data": _tw_multi or _load("summ_tweetsumm_summary.json"),
+         "key": "tweetsumm",
          "raw": "summ_tweetsumm", "chart": "rougeL_vs_cost.png",
          "primary": True},
         {"data": _load("summ_summary.json"), "key": "all",
@@ -358,6 +364,15 @@ def main():
             s.get("dataset"), "PRIMARY, in-domain customer support" if primary
             else "SECONDARY, cross-domain robustness check")
         lines.append("\n" + heading)
+        if primary and s.get("scoring"):
+            lines.append(
+                f"_Scoring: **{s['scoring']}**, "
+                f"{s.get('references_per_dialogue', '?')} references per "
+                "dialogue on average. Scoring against a single arbitrary "
+                "annotator would measure agreement with that annotator rather "
+                "than summary quality. Single-reference TweetSumm scores are "
+                "retained in NOTES.md §11 for continuity with DialogSum, which "
+                "has only one reference per dialogue._\n")
         if not primary:
             lines.append(
                 "_DialogSum is general-domain daily conversation, not contact "

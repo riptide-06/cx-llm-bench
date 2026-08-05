@@ -107,11 +107,13 @@ DialogSum discussion below is kept for the record of why it was used first.
 - **Reconstruction integrity (test split):** 110 dialogues referencing 1,152
   distinct tweet IDs; **1,152/1,152 resolved in twcs.csv, 0 dialogues dropped.**
   Full coverage — no silent truncation.
-- **Reference summary:** each dialogue carries **3** human abstractive
-  annotations; per the study design the **first** is used, with its sentences
-  joined into a single reference string. The other two are available in the
-  raw annotations for anyone wanting multi-reference ROUGE, which would be a
-  strictly better metric and is worth noting as future work.
+- **Reference summaries:** each dialogue carries ~**3** human abstractive
+  annotations (3.11 on average over the sampled 100; a few carry more), each a
+  list of sentences joined into one reference string. **All** are retained.
+  The primary scoring is **multi-reference ROUGE — max over references**, the
+  standard convention when a corpus ships several human summaries; the first
+  reference alone is also scored and reported, for continuity with DialogSum
+  which has only one. See §11.
 - **Speaker attribution:** upstream marks a turn as agent when the Kaggle
   `inbound` field is `False`. Rendered as `Customer:` / `Agent:` lines.
 - **Sampling:** all 110 test dialogues loaded, shuffled with `Random(42)`, first
@@ -681,70 +683,104 @@ from `temperature=0` across hosts will not get them.
 
 ---
 
-## 11. Statistical significance of the summarization differences
+## 11. Summarization scoring and statistical significance
 
-The five models sit within ~0.017 ROUGE-L of each other on TweetSumm. A ranking
-that tight needs a number attached before anyone calls it a ranking, so the
-differences were tested with a paired bootstrap rather than eyeballed.
+### Multi-reference ROUGE is the primary scoring for TweetSumm
+
+TweetSumm ships **~3 human abstractive summaries per dialogue** (3.11 on
+average across the sampled 100 — a few dialogues carry more). Scoring against
+only the first measures agreement with one arbitrary annotator, not summary
+quality: a model is penalised for writing a perfectly good summary that happens
+to resemble annotator 2. The standard convention with multiple references is to
+score against each and take the **maximum** per metric, which is what
+`src/multiref.py` does. **0 dialogues fell back to single-reference scoring.**
+
+This required **no new API calls** — the generated summaries were already in the
+raw log; only the extra references are new, joined on dialogue id.
+
+DialogSum has one reference per dialogue and cannot be scored this way, so the
+**single-reference** TweetSumm numbers are retained below: a cross-corpus
+comparison must be single-ref to single-ref.
+
+| Model | multi-ref ROUGE-L | single-ref ROUGE-L |
+|---|---:|---:|
+| `together_ai/…Llama-3.3-70B-Instruct-Turbo` (open) | **0.2738** | **0.2198** |
+| `mistral/mistral-small-latest` (open) | 0.2542 | 0.2053 |
+| `groq/llama-3.1-8b-instant` (open) | 0.2538 | 0.2069 |
+| `claude-haiku-4-5-20251001` (proprietary) | 0.2529 | 0.2060 |
+| `claude-sonnet-5` (proprietary) | 0.2480 | 0.2028 |
+
+All scores rise under multi-reference, as they must — a max over more
+references cannot decrease. What matters is that the **ordering is stable at
+the top** (the 70B leads under both) and that the open-vs-proprietary margin
+**widens** rather than narrowing, so the finding is not an artifact of which
+annotator was picked.
+
+### Paired bootstrap
 
 ### Are the summarization differences real? Paired bootstrap
 
 Paired bootstrap over per-dialogue ROUGE-L differences, 10,000 resamples, seed 42. Resampling is over dialogues (paired), because both models score the same dialogues and dialogue difficulty dominates the variance.
 
 
-**TweetSumm** (n=100 dialogues) — ranked by mean ROUGE-L: `Llama-3.3-70B-Instruct-Turbo` 0.2198, `llama-3.1-8b-instant` 0.2069, `claude-haiku-4-5-20251001` 0.2060, `mistral-small-latest` 0.2053, `claude-sonnet-5` 0.2028
+**TweetSumm — MULTI-REFERENCE (primary; max over ~3 human summaries)** (n=100 dialogues) — ranked by mean ROUGE-L: `Llama-3.3-70B-Instruct-Turbo` 0.2738, `mistral-small-latest` 0.2542, `llama-3.1-8b-instant` 0.2538, `claude-haiku-4-5-20251001` 0.2529, `claude-sonnet-5` 0.2480
+
+- **Top-1 vs top-2** — `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` minus `mistral/mistral-small-latest`, n=100 paired:
+  observed ΔROUGE-L = **+0.0196**, 95% CI [+0.0094, +0.0298], p≈0.000 → **distinguishable** (95% CI excludes 0)
+- **Best open-weights vs best proprietary (the compliance-gap claim)** — `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` minus `claude-haiku-4-5-20251001`, n=100 paired:
+  observed ΔROUGE-L = **+0.0209**, 95% CI [+0.0099, +0.0316], p≈0.000 → **distinguishable** (95% CI excludes 0)
+
+**TweetSumm — single-reference (for continuity with DialogSum)** (n=100 dialogues) — ranked by mean ROUGE-L: `Llama-3.3-70B-Instruct-Turbo` 0.2198, `llama-3.1-8b-instant` 0.2069, `claude-haiku-4-5-20251001` 0.2060, `mistral-small-latest` 0.2053, `claude-sonnet-5` 0.2028
 
 - **Top-1 vs top-2** — `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` minus `groq/llama-3.1-8b-instant`, n=100 paired:
   observed ΔROUGE-L = **+0.0129**, 95% CI [+0.0045, +0.0214], p≈0.003 → **distinguishable** (95% CI excludes 0)
 - **Best open-weights vs best proprietary (the compliance-gap claim)** — `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` minus `claude-haiku-4-5-20251001`, n=100 paired:
   observed ΔROUGE-L = **+0.0138**, 95% CI [+0.0034, +0.0240], p≈0.009 → **distinguishable** (95% CI excludes 0)
 
-**DialogSum** (n=100 dialogues) — ranked by mean ROUGE-L: `mistral-small-latest` 0.1690, `claude-sonnet-5` 0.1615, `claude-haiku-4-5-20251001` 0.1459, `llama-3.3-70b-versatile` 0.1434, `llama-3.1-8b-instant` 0.1423, `Llama-3.3-70B-Instruct-Turbo` 0.1416
+**DialogSum — single-reference** (n=100 dialogues) — ranked by mean ROUGE-L: `mistral-small-latest` 0.1690, `claude-sonnet-5` 0.1615, `claude-haiku-4-5-20251001` 0.1459, `llama-3.3-70b-versatile` 0.1434, `llama-3.1-8b-instant` 0.1423, `Llama-3.3-70B-Instruct-Turbo` 0.1416
 
 - **Top-1 vs top-2** — `mistral/mistral-small-latest` minus `claude-sonnet-5`, n=100 paired:
   observed ΔROUGE-L = **+0.0074**, 95% CI [-0.0052, +0.0201], p≈0.245 → **within noise** (95% CI includes 0)
 - **Best open-weights vs best proprietary (the compliance-gap claim)** — `mistral/mistral-small-latest` minus `claude-sonnet-5`, n=100 paired:
   observed ΔROUGE-L = **+0.0074**, 95% CI [-0.0052, +0.0201], p≈0.245 → **within noise** (95% CI includes 0)
 
-### What this changes for the paper
+### What this means for the paper
 
-**The corpus decides the answer, and that is itself the finding.**
+**The open-weights summarization lead on in-domain data is statistically
+solid, and multi-reference scoring strengthens it.**
 
-- On **TweetSumm** — real customer-support dialogue, the domain the paper is
-  about — the best open-weights model beats the best proprietary model by
-  **+0.0138 ROUGE-L, 95% CI [+0.0034, +0.0240], p≈0.009**. The interval
-  excludes zero, so this is *not* a coin flip. Open weights genuinely lead
-  in-domain on this metric.
-- On **DialogSum** — general daily conversation — the same comparison gives
-  **+0.0074, 95% CI [-0.0052, +0.0201], p≈0.245**. The interval straddles zero.
-  Here "within noise" is the correct description.
+| Scoring | Δ (best open − best proprietary) | 95% CI | p | verdict |
+|---|---:|---|---:|---|
+| TweetSumm, **multi-ref (primary)** | **+0.0209** | [+0.0099, +0.0316] | ≈0.000 | distinguishable |
+| TweetSumm, single-ref | +0.0138 | [+0.0034, +0.0240] | ≈0.009 | distinguishable |
+| DialogSum, single-ref | +0.0074 | [−0.0052, +0.0201] | ≈0.245 | within noise |
 
-So the earlier caution that these differences might be noise was right for
-DialogSum and **wrong for TweetSumm**. Do not carry a blanket "summarization
-differences are within noise" claim into the paper; it is corpus-specific.
+- Do **not** carry a blanket "summarization differences are within noise" claim
+  into the paper. That is true on DialogSum and false on TweetSumm under either
+  scoring.
+- The result is robust to the scoring choice: it holds single-ref and gets
+  *stronger* multi-ref. That is the right direction — a finding that only
+  appeared under the more favourable metric would be suspect.
 
-**The model ordering also nearly inverts between corpora.**
-`llama-3.3-70B` ranks **1st of 6** on TweetSumm (0.2198) and **last** on
-DialogSum (0.1416); `mistral-small` is 1st on DialogSum and 4th on TweetSumm.
-Since DialogSum's own top-2 gap is not significant, part of that reshuffle is
-noise — but the 70B's movement is far larger than the DialogSum confidence
-interval and is not explainable that way. The defensible reading is that
-**ROUGE-based summarization rankings do not transfer across domains**, which is
-a caution worth stating explicitly rather than a result to headline.
+**The ranking still does not transfer across domains.** `llama-3.3-70B` is 1st
+of 6 on TweetSumm (both scorings) and last on DialogSum (0.1416);
+`mistral-small` is 1st on DialogSum and 2nd–4th on TweetSumm depending on
+scoring. Since DialogSum's own top-2 difference is not significant, some of the
+reshuffle is noise — but the 70B's movement far exceeds that interval. Treat
+ROUGE-based summarization rankings as corpus-specific.
 
-### Caveats on the test itself
+### Caveats on the method
 
-- The bootstrap is **paired** (resampling dialogues, not models) because both
-  models summarize the same dialogues and dialogue difficulty dominates the
-  variance. An unpaired test would be the wrong instrument.
-- `p_two_sided` is an approximate bootstrap p-value, offered as an aid to
-  interpretation, not as a hypothesis test with a hard threshold.
-- Only the **top-2** pair and the **best-open vs best-proprietary** pair were
-  tested, as specified. No multiple-comparison correction is applied; with only
-  two planned comparisons per corpus that is defensible, but a full
-  all-pairs matrix would need one.
-- All of this measures **ROUGE-L against a single reference**, and each
-  TweetSumm dialogue has three human abstractive summaries. Multi-reference
-  scoring would be strictly better and the annotations are available. ROUGE
-  also does not measure whether a summary is usable at agent handoff — that is
-  what the blinded expert rating sheet is for.
+- The bootstrap is **paired** (resampling dialogues, not models): both models
+  score the same dialogues and dialogue difficulty dominates the variance, so
+  an unpaired test would be the wrong instrument.
+- `p_two_sided` is an approximate bootstrap p-value, an aid to interpretation
+  rather than a hypothesis test with a hard threshold. Values printed as
+  ≈0.000 mean no resample out of 10,000 crossed zero, not a literal zero.
+- Only the **top-2** and **best-open vs best-proprietary** pairs were tested,
+  as specified. No multiple-comparison correction is applied; with two planned
+  comparisons per corpus that is defensible, but an all-pairs matrix would
+  need one.
+- ROUGE measures surface overlap, not whether a summary is usable at agent
+  handoff. That is what the blinded expert rating sheet — now built from
+  TweetSumm — is for, and it remains the instrument for the usability claim.

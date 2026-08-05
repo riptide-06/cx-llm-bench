@@ -46,6 +46,19 @@ CORPORA = [
 ]
 
 
+def multiref_rougeL():
+    """TweetSumm per-dialogue ROUGE-L, max over all human references.
+
+    This is the primary scoring for TweetSumm: the corpus ships ~3 human
+    summaries per dialogue, and scoring against only the first measures
+    agreement with one arbitrary annotator rather than summary quality.
+    """
+    import multiref
+    per_dialogue, _means, _stats = multiref.score_rows("summ_tweetsumm.jsonl")
+    return {m: {d: v["rougeL"] for d, v in dd.items()}
+            for m, dd in per_dialogue.items()}
+
+
 def per_dialogue_rougeL(raw_file: str):
     """-> {model: {dialogue_id: rougeL}}"""
     p = RAW / raw_file
@@ -122,9 +135,23 @@ def markdown(open_models: set[str] | None = None):
              f"{N_RESAMPLES:,} resamples, seed {SEED}. Resampling is over "
              "dialogues (paired), because both models score the same dialogues "
              "and dialogue difficulty dominates the variance.\n"]
+    variants = []
+    try:
+        mr = multiref_rougeL()
+        if mr:
+            variants.append(
+                ("TweetSumm — MULTI-REFERENCE (primary; max over ~3 human "
+                 "summaries)", mr))
+    except Exception as e:  # twcs.csv absent -> multi-ref not computable
+        variants.append((f"TweetSumm — multi-reference UNAVAILABLE ({e})", {}))
     for corpus, raw_file in CORPORA:
-        scores = per_dialogue_rougeL(raw_file)
+        label = corpus + (" — single-reference (for continuity with DialogSum)"
+                          if corpus == "TweetSumm" else " — single-reference")
+        variants.append((label, per_dialogue_rougeL(raw_file)))
+
+    for corpus, scores in variants:
         if not scores:
+            lines.append(f"\n**{corpus}** — not computable.\n")
             continue
         means = {m: sum(v.values()) / len(v) for m, v in scores.items() if v}
         # Only models scored on the full shared set are comparable.

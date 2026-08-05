@@ -142,6 +142,26 @@ def main():
             print(f"  {m[:44]:44s} n={v['n_scored']:4d} rougeL={v['rougeL']}")
         print(f"  -> {out_file}: {len(outputs)} rows")
 
+    # TweetSumm ships ~3 human summaries per dialogue, so it additionally gets
+    # MULTI-REFERENCE scoring (max over references) — the primary numbers in
+    # tables.md. Needs twcs.csv locally; skipped cleanly if absent, since the
+    # single-reference summaries above are already written.
+    if (RAW / "summ_tweetsumm.jsonl").exists():
+        try:
+            import multiref
+            s, _per, stats = multiref.summary_json("summ_tweetsumm.jsonl")
+            (RES / "summ_tweetsumm_multiref_summary.json").write_text(
+                json.dumps(s, indent=2))
+            print(f"summ_tweetsumm_multiref_summary.json  [TweetSumm, "
+                  f"multi-ref, {s['references_per_dialogue']} refs/dialogue]:")
+            for m, v in sorted(s["models"].items(), key=lambda x: -x[1]["rougeL"]):
+                print(f"  {m[:44]:44s} n={v['n_scored']:4d} rougeL={v['rougeL']}")
+            if stats["rows_without_multiref_fallback_to_single"]:
+                print(f"  [warn] {stats['rows_without_multiref_fallback_to_single']}"
+                      " rows fell back to a single reference")
+        except Exception as e:
+            print(f"multi-reference scoring skipped: {type(e).__name__}: {e}")
+
 
 if __name__ == "__main__":
     main()

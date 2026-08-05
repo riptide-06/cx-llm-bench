@@ -1,0 +1,43 @@
+{
+  "dataset": "TweetSumm",
+  "scoring": "multi-reference (max over 3 human abstractive summaries)",
+  "n_dialogues": 100,
+  "references_per_dialogue": 3.11,
+  "models": {
+    "groq/llama-3.1-8b-instant": {
+      "rouge1": 0.3778,
+      "rouge2": 0.1288,
+      "rougeL": 0.2538,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "claude-haiku-4-5-20251001": {
+      "rouge1": 0.3675,
+      "rouge2": 0.113,
+      "rougeL": 0.2529,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "claude-sonnet-5": {
+      "rouge1": 0.3703,
+      "rouge2": 0.1091,
+      "rougeL": 0.248,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo": {
+      "rouge1": 0.3905,
+      "rouge2": 0.1377,
+      "rougeL": 0.2738,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "mistral/mistral-small-latest": {
+      "rouge1": 0.3667,
+      "rouge2": 0.1132,
+      "rougeL": 0.2542,
+      "n_scored": 100,
+      "error_rate": 0.0
+    }
+  }
+}

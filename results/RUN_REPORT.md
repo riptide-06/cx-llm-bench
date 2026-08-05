@@ -86,7 +86,8 @@ supplementary rows.
 | Intent, few-shot | llama-3.3-70B 0.757 | sonnet-5 **0.811** | 0.054 | **6.66%** |
 | Intent, zero-shot (macro-F1) | llama-3.3-70B 0.7144 | sonnet-5 **0.798** | 0.0836 | **10.48%** |
 | Intent, few-shot (macro-F1) | llama-3.3-70B 0.7253 | sonnet-5 **0.7931** | 0.0678 | **8.55%** |
-| **Summarization — TweetSumm (primary)**, ROUGE-L | llama-3.3-70B **0.2198** | haiku-4.5 0.2060 | −0.0138 | **−6.70%** |
+| **Summarization — TweetSumm (primary, multi-ref)**, ROUGE-L | llama-3.3-70B **0.2738** | haiku-4.5 0.2529 | −0.0209 | **−8.26%** |
+| Summarization — TweetSumm (single-ref, for continuity) | llama-3.3-70B **0.2198** | haiku-4.5 0.2060 | −0.0138 | −6.70% |
 | Summarization — DialogSum (secondary), ROUGE-L | mistral **0.169** | sonnet-5 0.1615 | −0.0075 | **−4.64%** |
 
 At published list prices the open side is ~2.7x cheaper on intent ($0.52 vs
@@ -104,13 +105,21 @@ from 0.746 to 0.757 and Sonnet from 0.807 to 0.811, so the gap narrows only
 from 7.56% to 6.66%. Prompt engineering is not a substitute for model tier here.
 
 **Summarization inverts the gap, and on the primary corpus it is statistically
-real.** On TweetSumm — genuine customer-support dialogue — the best open-weights
-model beats the best proprietary one by **+0.0138 ROUGE-L, 95% CI
-[+0.0034, +0.0240], p≈0.009** (paired bootstrap, 10,000 resamples over the 100
-shared dialogues). The interval excludes zero. On DialogSum the same comparison
-gives **+0.0074, 95% CI [−0.0052, +0.0201], p≈0.245** — within noise. So
-"summarization differences are within noise" is true out-of-domain and **false
-in-domain**; do not state it as a blanket claim. Full detail in NOTES.md §11.
+real.** TweetSumm is scored **multi-reference** (max over its ~3 human summaries
+per dialogue, 3.11 on average) — the standard convention, and fairer than
+scoring against one arbitrary annotator. Paired bootstrap, 10,000 resamples over
+the 100 shared dialogues:
+
+| Scoring | Δ (best open − best proprietary) | 95% CI | p |
+|---|---:|---|---:|
+| TweetSumm, **multi-ref (primary)** | **+0.0209** | [+0.0099, +0.0316] | ≈0.000 |
+| TweetSumm, single-ref | +0.0138 | [+0.0034, +0.0240] | ≈0.009 |
+| DialogSum, single-ref | +0.0074 | [−0.0052, +0.0201] | ≈0.245 |
+
+The in-domain result is significant under **both** scorings and strengthens
+under multi-reference, so it is not an artifact of the metric choice. Do not
+state "summarization differences are within noise" as a blanket claim — that is
+true out-of-domain and false in-domain. Full detail in NOTES.md §11.
 
 **The summarization ranking does not transfer across domains.**
 `llama-3.3-70B` is 1st of 6 on TweetSumm (0.2198) and last on DialogSum

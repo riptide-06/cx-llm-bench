@@ -28,13 +28,19 @@ open-weights side is **~2.7x cheaper** ($0.52 vs $1.39 per 1,000 zero-shot
 queries).
 
 **On summarization the ordering inverts.** On TweetSumm — genuine
-customer-support dialogue — Llama-3.3-70B *beats* the best proprietary model by
-**6.70% relative ROUGE-L**, and a paired bootstrap (10,000 resamples, 100 shared
-dialogues) puts that at **+0.0138, 95% CI [+0.0034, +0.0240], p≈0.009**: the
-interval excludes zero, so it is not noise. The same comparison on DialogSum
-(general-domain, secondary) gives **+0.0074, 95% CI [−0.0052, +0.0201]**, which
-*is* within noise. Summarization rankings here are **corpus-specific** and do
-not transfer across domains — see `results/NOTES.md` §11.
+customer-support dialogue, scored **multi-reference** (max over its ~3 human
+summaries per dialogue) — Llama-3.3-70B *beats* the best proprietary model by
+**8.26% relative ROUGE-L** (0.2738 vs 0.2529). A paired bootstrap (10,000
+resamples over the 100 shared dialogues) puts that at **+0.0209, 95% CI
+[+0.0099, +0.0316], p≈0.000** — the interval excludes zero, so it is not noise.
+The result holds under single-reference scoring too (+0.0138, p≈0.009) and gets
+*stronger* multi-reference, so it is not an artifact of the metric choice.
+
+The same comparison on DialogSum (general-domain, secondary, single-reference)
+gives **+0.0074, 95% CI [−0.0052, +0.0201], p≈0.245** — *within* noise. So
+summarization rankings here are **corpus-specific** and do not transfer across
+domains; Llama-3.3-70B is 1st of 6 on TweetSumm and last on DialogSum. See
+`results/NOTES.md` §11.
 
 **These gaps are upper bounds.** The 70B was served FP8-quantized, and
 quantization can only depress the open-weights score; since

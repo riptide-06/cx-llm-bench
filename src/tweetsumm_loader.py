@@ -117,16 +117,23 @@ def load_split(split: str = "test"):
         abstractive = dws.get_abstractive_summaries()
         if not turns or not abstractive:
             continue
-        # "Use the first abstractive annotation as the reference" — each
-        # annotation is a list of sentences, so join them into one summary.
-        reference = " ".join(s.strip() for s in abstractive[0] if s.strip())
-        if not reference:
+        # Each annotation is a list of sentences; join each into one summary.
+        # ALL annotations are kept: `reference` (the first) preserves the
+        # original single-reference scoring for continuity with DialogSum, and
+        # `references` enables multi-reference ROUGE (max over references),
+        # which is the standard convention when a corpus ships several human
+        # summaries per item and is the fairer measurement.
+        refs = [" ".join(s.strip() for s in ann if s.strip())
+                for ann in abstractive]
+        refs = [r for r in refs if r]
+        if not refs:
             continue
         items.append({
             "id": f"tweetsumm_{dialog.get_dialog_id()}",
             "dialogue": "\n".join(turns),
-            "reference": reference,
-            "n_abstractive_annotations": len(abstractive),
+            "reference": refs[0],
+            "references": refs,
+            "n_abstractive_annotations": len(refs),
         })
 
     stats = {
