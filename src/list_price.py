@@ -165,14 +165,20 @@ def list_cost_per_1k():
         a["out"] += _count(m, r.get("raw") or "")
         a["n"] += 1
 
-    for r in _dedupe(RAW / "summ.jsonl", ("model", "id")):
-        if r.get("error"):
-            continue
-        m = r["model"]
-        a = agg[(m, "all")]
-        a["in"] += _count(m, SUMM_PROMPT.format(dialogue=r["dialogue"]))
-        a["out"] += _count(m, r.get("generated") or "")
-        a["n"] += 1
+    # The two summarization corpora are priced SEPARATELY — TweetSumm dialogues
+    # average ~1,280 chars against DialogSum's ~700, so blending them under one
+    # key would misstate cost-per-1k for both. Keys: "all" keeps the DialogSum
+    # key stable for existing consumers; TweetSumm gets its own.
+    for fname, cond_key in (("summ.jsonl", "all"),
+                            ("summ_tweetsumm.jsonl", "tweetsumm")):
+        for r in _dedupe(RAW / fname, ("model", "id")):
+            if r.get("error"):
+                continue
+            m = r["model"]
+            a = agg[(m, cond_key)]
+            a["in"] += _count(m, SUMM_PROMPT.format(dialogue=r["dialogue"]))
+            a["out"] += _count(m, r.get("generated") or "")
+            a["n"] += 1
 
     out = {}
     for (m, cond), a in agg.items():

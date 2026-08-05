@@ -12,6 +12,17 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# ---- TweetSumm source data: LICENSE-RESTRICTED, never commit ----
+# TweetSumm (CDLA-Sharing-1.0) distributes only tweet IDs and annotations; the
+# tweet TEXT must be obtained from Kaggle's Customer Support on Twitter dataset
+# and is deliberately not redistributed here. Keeping text access routed through
+# Kaggle is a licensing requirement, not a size decision.
+data/
+vendor/tweetsumm/
+# Reconstructed dialogue text derived from twcs.csv is equally restricted.
+results/tweetsumm_outputs.json
+results/raw/summ_tweetsumm.jsonl
+
 # ---- large or non-public artifacts ----
 # Cache is large (~10k files) and fully reproducible from the code; it is
 # available on request rather than committed. Raw logs ARE committed - they are
@@ -24,8 +35,11 @@ results/run_logs/
 
 # Expert rating is still in progress. The sheet and its blinding key are held
 # back until review completes; anonymized results will be added afterwards.
-results/expert_rating_sheet.csv
-results/expert_rating_key.csv
+# Glob, not exact names, so archived//variant sheets cannot slip through.
+# NOTE: the TweetSumm-based sheet also contains reconstructed dialogue text,
+# which is license-restricted (CDLA-Sharing-1.0, text sourced from Kaggle) and
+# must never be committed regardless of the rating embargo.
+results/expert_rating_*.csv
 
 # Held back for the SAME reason: both map each generated summary to the model
 # that produced it. Publishing them would let anyone match a summary's text

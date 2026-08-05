@@ -232,10 +232,27 @@ def main():
         lines.append("_Final: every configured model completed both tasks._\n")
     intent = json.loads((RES / "intent_summary.json").read_text()) \
         if (RES / "intent_summary.json").exists() else {}
-    summ = json.loads((RES / "summ_summary.json").read_text()) \
-        if (RES / "summ_summary.json").exists() else {}
+
+    def _load(name):
+        p = RES / name
+        return json.loads(p.read_text()) if p.exists() else {}
+
+    # PRIMARY first — order matters, it drives the order of both the tables and
+    # the compliance-gap rows.
+    SUMM_DATASETS = [
+        {"data": _load("summ_tweetsumm_summary.json"), "key": "tweetsumm",
+         "raw": "summ_tweetsumm", "chart": "rougeL_vs_cost.png",
+         "primary": True},
+        {"data": _load("summ_summary.json"), "key": "all",
+         "raw": "summ", "chart": "rougeL_vs_cost_dialogsum.png",
+         "primary": False},
+    ]
+
     icl = cost_latency_from_raw("intent", ("model", "condition", "idx"))
-    scl = cost_latency_from_raw("summ", ("model", "id"))
+    scl = {}
+    for d in SUMM_DATASETS:
+        for (m, _c), v in cost_latency_from_raw(d["raw"], ("model", "id")).items():
+            scl[(m, d["key"])] = v
 
     gap_rows = []
 
@@ -327,13 +344,31 @@ def main():
             plt.savefig(CHARTS / "zs_vs_fs.png", dpi=200)
             plt.close()
 
-    if summ:
-        lines.append(f"\n## Summarization ({summ.get('dataset')})\n")
+    # Two summarization corpora. TweetSumm is the PRIMARY result: it is genuine
+    # customer-support dialogue, the domain this paper is about. DialogSum is
+    # retained as a secondary cross-domain robustness check — it is
+    # general-purpose daily conversation, so agreement between the two is
+    # evidence the finding is not an artifact of one corpus.
+    for cfgd in SUMM_DATASETS:
+        s = cfgd["data"]
+        if not s:
+            continue
+        primary = cfgd["primary"]
+        heading = "## Summarization — {} ({})\n".format(
+            s.get("dataset"), "PRIMARY, in-domain customer support" if primary
+            else "SECONDARY, cross-domain robustness check")
+        lines.append("\n" + heading)
+        if not primary:
+            lines.append(
+                "_DialogSum is general-domain daily conversation, not contact "
+                "center data. It is reported as a robustness check on whether "
+                "the TweetSumm ordering holds out of domain — not as the "
+                "headline summarization result._\n")
         rows2 = []
-        for m, v in summ["models"].items():
+        for m, v in s["models"].items():
             rows2.append({"model": m, "category": category_of(m, open_models),
-                          **v, **scl.get((m, "all"), {}),
-                          **lp.get((m, "all"), {})})
+                          **v, **scl.get((m, cfgd["key"]), {}),
+                          **lp.get((m, cfgd["key"]), {})})
         df2 = pd.DataFrame(rows2).sort_values(["category", "model"])
         df2 = ensure_cols(df2, ["rouge1", "rouge2", "rougeL",
                                 "list_cost_per_1k", "billed_cost_per_1k",
@@ -349,7 +384,8 @@ def main():
             lines.append(sub2.drop(columns=["full_n"]).to_markdown(index=False) + "\n")
         gap_rows += compliance_gap_rows(
             df2, ["rougeL", "rouge1", "rouge2"],
-            f"summarization ({summ.get('dataset')})")
+            "summarization ({}{})".format(
+                s.get("dataset"), "" if primary else ", secondary"))
 
         rl = df2[df2.full_n].dropna(subset=["list_cost_per_1k", "rougeL"])
         if len(rl):
@@ -367,13 +403,13 @@ def main():
                              xytext=(6, 6), textcoords="offset points")
             plt.xlabel("Cost per 1,000 summaries (USD, hosted API list price)")
             plt.ylabel("ROUGE-L")
-            plt.title("Summarization: ROUGE-L vs. cost"
+            plt.title("Summarization ({}): ROUGE-L vs. cost".format(s.get("dataset"))
                       + ("  [PRELIMINARY]" if missing else ""))
             plt.margins(x=0.22, y=0.12)  # headroom so point labels aren't clipped
             plt.grid(alpha=0.3, zorder=0)
             plt.legend(title="Category")
             plt.tight_layout()
-            plt.savefig(CHARTS / "rougeL_vs_cost.png", dpi=200)
+            plt.savefig(CHARTS / cfgd["chart"], dpi=200)
             plt.close()
 
     if gap_rows:

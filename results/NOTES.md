@@ -1,9 +1,16 @@
 # CX-LLM-Bench — Run Notes
 
-Status as of 2026-07-31: **Phase 0 complete, Phase 1 running, Phase 2 pending.**
-Credentials were located and every model ID in the lineup has been verified
-live. All numbers in this file are measured; nothing is estimated unless the
-line says so explicitly.
+Status as of 2026-08-05: **complete.** All phases run; every configured model
+finished its declared scope. Summarization was re-run on **TweetSumm** (the
+official in-domain corpus) once it became available, with DialogSum retained as
+a secondary cross-domain check — see §2 and §11.
+
+All numbers in this file are measured; nothing is estimated unless the line says
+so explicitly. Where an earlier conclusion was later shown to be wrong, the
+correction is kept in place rather than silently rewritten — see §5 (the
+llama-8b stall was a tokens-per-*day* cap, not the per-minute cascade first
+reported) and §11 (summarization differences are *not* uniformly "within
+noise"; that holds on DialogSum but not on TweetSumm).
 
 ---
 
@@ -69,7 +76,56 @@ chart must be read with that in mind.
   (leading capital) and `reverted_card_payment?` (trailing question mark). The
   normalizer folds both, and all 77 labels were verified to round-trip.
 
-### Summarization — TweetSumm unavailable, using DialogSum
+### Summarization — TweetSumm (PRIMARY), DialogSum (secondary)
+
+**Updated 2026-08-04: TweetSumm was obtained and is now the primary corpus.**
+DialogSum is retained as a secondary cross-domain robustness check. The
+DialogSum discussion below is kept for the record of why it was used first.
+
+#### TweetSumm — primary
+
+- **Source:** the official repo, <https://github.com/guyfe/Tweetsumm>, vendored
+  at `vendor/tweetsumm/` (not committed).
+- **Licensing — and why no dialogue text is in this repository.** TweetSumm
+  distributes only tweet **IDs**, sentence offsets and human annotations. The
+  tweet **text** lives in Kaggle's
+  ["Customer Support on Twitter"](https://www.kaggle.com/thoughtvector/customer-support-on-twitter)
+  dataset (`twcs.csv`, 493 MB, 3,002,523 rows) and is deliberately not
+  redistributed by TweetSumm. Their dataset is released under
+  **CDLA-Sharing-1.0** (<https://cdla.io/sharing-1-0/>); the repo's own *code*
+  carries CC0-1.0. Accordingly this project commits **the loader and the tweet
+  IDs only** — never `data/twcs.csv`, the vendored repo, the reconstructed
+  dialogues, or the rating sheet built from them. `.gitignore` enforces this.
+  Reproducers download `twcs.csv` from Kaggle themselves, which is exactly how
+  the license intends text access to be routed.
+- **Reconstruction:** `src/tweetsumm_loader.py` reuses the upstream
+  `TweetSumProcessor` **verbatim** for offset slicing and speaker attribution,
+  rather than reimplementing it and risking a subtle mismatch. The only change
+  is memory: upstream's constructor loads all ~3M twcs rows into a dict, so we
+  build the identical `tweet_id_to_content` mapping from one streaming pass
+  keeping only the ~1.1k IDs the test split needs, and inject it.
+- **Reconstruction integrity (test split):** 110 dialogues referencing 1,152
+  distinct tweet IDs; **1,152/1,152 resolved in twcs.csv, 0 dialogues dropped.**
+  Full coverage — no silent truncation.
+- **Reference summary:** each dialogue carries **3** human abstractive
+  annotations; per the study design the **first** is used, with its sentences
+  joined into a single reference string. The other two are available in the
+  raw annotations for anyone wanting multi-reference ROUGE, which would be a
+  strictly better metric and is worth noting as future work.
+- **Speaker attribution:** upstream marks a turn as agent when the Kaggle
+  `inbound` field is `False`. Rendered as `Customer:` / `Agent:` lines.
+- **Sampling:** all 110 test dialogues loaded, shuffled with `Random(42)`, first
+  **100** taken — identical treatment to Banking77 and DialogSum.
+- **Scale:** TweetSumm dialogues average ~1,281 characters vs DialogSum's ~700,
+  i.e. meaningfully longer multi-turn support threads.
+
+**Why this matters for the paper.** DialogSum is general-domain daily
+conversation; TweetSumm is real customer-support dialogue between consumers and
+company agents. The paper's claim is about *contact center* automation, so
+TweetSumm is the in-domain measurement and DialogSum is now a free bonus: a
+cross-domain check on whether the model ordering is corpus-specific.
+
+#### DialogSum — secondary (original notes retained)
 
 - **Dataset used: `knkarthick/dialogsum`** (train 12,460 / validation 500 /
   **test 1,500**), the fallback explicitly authorized in CLAUDE.md.
@@ -622,3 +678,73 @@ decoding down different paths. Worth a sentence in the paper: summarization
 quality here is robust to serving-stack variation even though the surface text
 is not reproducible across providers. Anyone expecting byte-identical outputs
 from `temperature=0` across hosts will not get them.
+
+---
+
+## 11. Statistical significance of the summarization differences
+
+The five models sit within ~0.017 ROUGE-L of each other on TweetSumm. A ranking
+that tight needs a number attached before anyone calls it a ranking, so the
+differences were tested with a paired bootstrap rather than eyeballed.
+
+### Are the summarization differences real? Paired bootstrap
+
+Paired bootstrap over per-dialogue ROUGE-L differences, 10,000 resamples, seed 42. Resampling is over dialogues (paired), because both models score the same dialogues and dialogue difficulty dominates the variance.
+
+
+**TweetSumm** (n=100 dialogues) — ranked by mean ROUGE-L: `Llama-3.3-70B-Instruct-Turbo` 0.2198, `llama-3.1-8b-instant` 0.2069, `claude-haiku-4-5-20251001` 0.2060, `mistral-small-latest` 0.2053, `claude-sonnet-5` 0.2028
+
+- **Top-1 vs top-2** — `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` minus `groq/llama-3.1-8b-instant`, n=100 paired:
+  observed ΔROUGE-L = **+0.0129**, 95% CI [+0.0045, +0.0214], p≈0.003 → **distinguishable** (95% CI excludes 0)
+- **Best open-weights vs best proprietary (the compliance-gap claim)** — `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` minus `claude-haiku-4-5-20251001`, n=100 paired:
+  observed ΔROUGE-L = **+0.0138**, 95% CI [+0.0034, +0.0240], p≈0.009 → **distinguishable** (95% CI excludes 0)
+
+**DialogSum** (n=100 dialogues) — ranked by mean ROUGE-L: `mistral-small-latest` 0.1690, `claude-sonnet-5` 0.1615, `claude-haiku-4-5-20251001` 0.1459, `llama-3.3-70b-versatile` 0.1434, `llama-3.1-8b-instant` 0.1423, `Llama-3.3-70B-Instruct-Turbo` 0.1416
+
+- **Top-1 vs top-2** — `mistral/mistral-small-latest` minus `claude-sonnet-5`, n=100 paired:
+  observed ΔROUGE-L = **+0.0074**, 95% CI [-0.0052, +0.0201], p≈0.245 → **within noise** (95% CI includes 0)
+- **Best open-weights vs best proprietary (the compliance-gap claim)** — `mistral/mistral-small-latest` minus `claude-sonnet-5`, n=100 paired:
+  observed ΔROUGE-L = **+0.0074**, 95% CI [-0.0052, +0.0201], p≈0.245 → **within noise** (95% CI includes 0)
+
+### What this changes for the paper
+
+**The corpus decides the answer, and that is itself the finding.**
+
+- On **TweetSumm** — real customer-support dialogue, the domain the paper is
+  about — the best open-weights model beats the best proprietary model by
+  **+0.0138 ROUGE-L, 95% CI [+0.0034, +0.0240], p≈0.009**. The interval
+  excludes zero, so this is *not* a coin flip. Open weights genuinely lead
+  in-domain on this metric.
+- On **DialogSum** — general daily conversation — the same comparison gives
+  **+0.0074, 95% CI [-0.0052, +0.0201], p≈0.245**. The interval straddles zero.
+  Here "within noise" is the correct description.
+
+So the earlier caution that these differences might be noise was right for
+DialogSum and **wrong for TweetSumm**. Do not carry a blanket "summarization
+differences are within noise" claim into the paper; it is corpus-specific.
+
+**The model ordering also nearly inverts between corpora.**
+`llama-3.3-70B` ranks **1st of 6** on TweetSumm (0.2198) and **last** on
+DialogSum (0.1416); `mistral-small` is 1st on DialogSum and 4th on TweetSumm.
+Since DialogSum's own top-2 gap is not significant, part of that reshuffle is
+noise — but the 70B's movement is far larger than the DialogSum confidence
+interval and is not explainable that way. The defensible reading is that
+**ROUGE-based summarization rankings do not transfer across domains**, which is
+a caution worth stating explicitly rather than a result to headline.
+
+### Caveats on the test itself
+
+- The bootstrap is **paired** (resampling dialogues, not models) because both
+  models summarize the same dialogues and dialogue difficulty dominates the
+  variance. An unpaired test would be the wrong instrument.
+- `p_two_sided` is an approximate bootstrap p-value, offered as an aid to
+  interpretation, not as a hypothesis test with a hard threshold.
+- Only the **top-2** pair and the **best-open vs best-proprietary** pair were
+  tested, as specified. No multiple-comparison correction is applied; with only
+  two planned comparisons per corpus that is defensible, but a full
+  all-pairs matrix would need one.
+- All of this measures **ROUGE-L against a single reference**, and each
+  TweetSumm dialogue has three human abstractive summaries. Multi-reference
+  scoring would be strictly better and the annotations are available. ROUGE
+  also does not measure whether a summary is usable at agent handoff — that is
+  what the blinded expert rating sheet is for.

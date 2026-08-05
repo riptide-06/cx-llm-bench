@@ -25,49 +25,42 @@ PROMPT = (
 )
 
 
-def _try_tweetsumm(n: int):
-    """Official TweetSumm via DialogStudio. Needs HF_TOKEN (gated repo)."""
-    if not (os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")):
-        raise RuntimeError("no HF_TOKEN set; TweetSumm repo is gated")
-    ds = load_dataset("Salesforce/dialogstudio", "TweetSumm")["test"]
-    items = []
-    for i, ex in enumerate(ds):
-        log = ex.get("log") or []
-        turns = []
-        for t in log:
-            turns.append(f"Customer: {t.get('user utterance','')}")
-            turns.append(f"Agent: {t.get('system response','')}")
-        refs = ex.get("original dialog info", "")
-        ref = ""
-        if isinstance(refs, str) and refs:
-            try:
-                info = json.loads(refs)
-                summaries = info.get("summaries", {}).get(
-                    "abstractive_summaries", [])
-                if summaries:
-                    ref = " ".join(summaries[0])
-            except Exception:
-                pass
-        if turns and ref:
-            items.append({"id": f"tweetsumm_{i}",
-                          "dialogue": "\n".join(turns), "reference": ref})
-    if len(items) < n:
-        raise ValueError(f"only {len(items)} usable TweetSumm items (need {n})")
-    return "TweetSumm", items
+# Output paths per dataset. TweetSumm artifacts are gitignored: reconstructed
+# dialogue text derives from Kaggle's twcs.csv and is not redistributable
+# (CDLA-Sharing-1.0). See src/tweetsumm_loader.py.
+DATASET_FILES = {
+    "tweetsumm": {"raw": "summ_tweetsumm",
+                  "summary": "summ_tweetsumm_summary.json",
+                  "outputs": "tweetsumm_outputs.json"},
+    "dialogsum": {"raw": "summ",
+                  "summary": "summ_summary.json",
+                  "outputs": "summ_outputs.json"},
+}
 
 
-def load_dialogues(n: int):
-    """Returns (dataset_name, list of {id, dialogue, reference})."""
-    try:
-        return _try_tweetsumm(n)
-    except Exception as e:
-        print(f"[warn] TweetSumm load failed ({e}); falling back to dialogsum")
-        ds = load_dataset("knkarthick/dialogsum")["test"]
-        return "dialogsum", [
-            {"id": f"dialogsum_{i}", "dialogue": ex["dialogue"],
-             "reference": ex["summary"]}
-            for i, ex in enumerate(ds)
-        ]
+def load_dialogues(dataset: str):
+    """Returns (dataset_name, list of {id, dialogue, reference}), UNSAMPLED.
+
+    Sampling stays in main() so both datasets are sampled identically
+    (seed-42 shuffle, then slice).
+    """
+    if dataset == "tweetsumm":
+        # Official TweetSumm, reconstructed locally from tweet IDs + twcs.csv.
+        # The DialogStudio route used previously is both gated and script-based
+        # and no longer loads under datasets>=3.
+        import tweetsumm_loader
+        items, stats = tweetsumm_loader.load_split("test")
+        print(f"[tweetsumm] {stats}", flush=True)
+        if not items:
+            raise SystemExit("TweetSumm produced no usable dialogues")
+        return "TweetSumm", items
+
+    ds = load_dataset("knkarthick/dialogsum")["test"]
+    return "dialogsum", [
+        {"id": f"dialogsum_{i}", "dialogue": ex["dialogue"],
+         "reference": ex["summary"]}
+        for i, ex in enumerate(ds)
+    ]
 
 
 def main():
@@ -75,12 +68,16 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--models", type=str, default=None,
                     help="comma-separated subset of models to run")
+    ap.add_argument("--dataset", type=str, default="tweetsumm",
+                    choices=sorted(DATASET_FILES),
+                    help="tweetsumm (primary) or dialogsum (secondary)")
     args = ap.parse_args()
 
     cfg = load_config()
     n = args.limit or cfg["summ"]["n_dialogues"]
+    files = DATASET_FILES[args.dataset]
 
-    ds_name, items = load_dialogues(n)
+    ds_name, items = load_dialogues(args.dataset)
     rng = random.Random(SEED)
     rng.shuffle(items)
     items = items[:n]
@@ -113,7 +110,7 @@ def main():
                    "generated": out["text"], "latency_s": out["latency_s"],
                    "cost_usd": out["cost_usd"], "cached": out["cached"],
                    "error": out.get("error")}
-            append_raw_log("summ", rec)
+            append_raw_log(files["raw"], rec)
             all_outputs.append(rec)
             if i % 25 == 0:
                 print(f"  {i}/{len(items)}", flush=True)
@@ -128,7 +125,7 @@ def main():
         }
     # MERGE rather than overwrite — models run as separate concurrent
     # processes and each only knows about its own model. See run_intent.py.
-    out_path = ROOT / "results" / "summ_summary.json"
+    out_path = ROOT / "results" / files["summary"]
     out_path.parent.mkdir(exist_ok=True)
     merged = {"dataset": ds_name, "n_dialogues": len(items), "models": {}}
     if out_path.exists():
@@ -143,7 +140,7 @@ def main():
 
     # summ_outputs.json feeds the blinded rating sheet, which must contain
     # every model in ONE batch — so merge on (model, id) here too.
-    op = ROOT / "results" / "summ_outputs.json"
+    op = ROOT / "results" / files["outputs"]
     prev_out = []
     if op.exists():
         try:

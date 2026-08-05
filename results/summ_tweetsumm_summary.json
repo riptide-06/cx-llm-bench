@@ -1,0 +1,41 @@
+{
+  "dataset": "TweetSumm",
+  "n_dialogues": 100,
+  "models": {
+    "groq/llama-3.1-8b-instant": {
+      "rouge1": 0.3007,
+      "rouge2": 0.0834,
+      "rougeL": 0.2069,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "claude-haiku-4-5-20251001": {
+      "rouge1": 0.2994,
+      "rouge2": 0.0716,
+      "rougeL": 0.206,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "claude-sonnet-5": {
+      "rouge1": 0.2945,
+      "rouge2": 0.0661,
+      "rougeL": 0.2028,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo": {
+      "rouge1": 0.3086,
+      "rouge2": 0.0874,
+      "rougeL": 0.2198,
+      "n_scored": 100,
+      "error_rate": 0.0
+    },
+    "mistral/mistral-small-latest": {
+      "rouge1": 0.2999,
+      "rouge2": 0.0691,
+      "rougeL": 0.2053,
+      "n_scored": 100,
+      "error_rate": 0.0
+    }
+  }
+}

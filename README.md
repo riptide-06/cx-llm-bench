@@ -23,10 +23,18 @@ classification** (Banking77, n=1,000, zero-shot *and* few-shot k=5) and
 The best open-weights model trails the best proprietary model by **7.56%
 relative accuracy zero-shot** and **6.66% few-shot** (10.48% / 8.55% on
 macro-F1, which weights Banking77's 77 classes equally and is arguably the more
-decision-relevant metric for routing). On summarization the ordering **inverts**:
-Mistral Small leads on ROUGE-L by 4.64% relative. At published API list prices
-the open-weights side is **~2.7x cheaper** ($0.52 vs $1.39 per 1,000 zero-shot
+decision-relevant metric for routing). At published API list prices the
+open-weights side is **~2.7x cheaper** ($0.52 vs $1.39 per 1,000 zero-shot
 queries).
+
+**On summarization the ordering inverts.** On TweetSumm — genuine
+customer-support dialogue — Llama-3.3-70B *beats* the best proprietary model by
+**6.70% relative ROUGE-L**, and a paired bootstrap (10,000 resamples, 100 shared
+dialogues) puts that at **+0.0138, 95% CI [+0.0034, +0.0240], p≈0.009**: the
+interval excludes zero, so it is not noise. The same comparison on DialogSum
+(general-domain, secondary) gives **+0.0074, 95% CI [−0.0052, +0.0201]**, which
+*is* within noise. Summarization rankings here are **corpus-specific** and do
+not transfer across domains — see `results/NOTES.md` §11.
 
 **These gaps are upper bounds.** The 70B was served FP8-quantized, and
 quantization can only depress the open-weights score; since
@@ -50,17 +58,40 @@ pip install -r requirements.txt
 cp .env.example .env      # then fill in your API keys
 ```
 
+### Getting the summarization data (required for the primary result)
+
+The primary summarization corpus is **TweetSumm**, which distributes only tweet
+**IDs** — the tweet **text** must come from Kaggle. That is a licensing
+requirement (CDLA-Sharing-1.0), so this repository ships the loader and nothing
+else; no dialogue text is redistributed here.
+
+```bash
+git clone https://github.com/guyfe/Tweetsumm.git vendor/tweetsumm
+
+# Download "Customer Support on Twitter" from Kaggle, then:
+#   https://www.kaggle.com/datasets/thoughtvector/customer-support-on-twitter
+mkdir -p data && mv /path/to/twcs.csv data/twcs.csv
+
+python src/tweetsumm_loader.py    # verify reconstruction
+```
+
+That check should report `tweet_ids_found_in_twcs` equal to
+`tweet_ids_referenced` and `dialogues_skipped_missing_tweets: 0`. Both `data/`
+and `vendor/` are gitignored. The secondary DialogSum corpus downloads
+automatically from the Hub and needs no setup.
+
 Keys are read from `.env` by `src/common.py`. **A key exported in your
 interactive shell will not reach a spawned run** — put it in `.env`.
 
 Run in this order:
 
 ```bash
-python src/run_intent.py            # Banking77: zero-shot + few-shot
-python src/run_summ.py              # DialogSum summarization
-python src/rebuild_summaries.py     # rebuild summary JSONs from raw logs
-python src/report.py                # -> results/tables.md + charts
-python src/make_rating_sheet.py     # blinded expert rating sheet
+python src/run_intent.py                       # Banking77: zero-shot + few-shot
+python src/run_summ.py --dataset tweetsumm     # PRIMARY summarization
+python src/run_summ.py --dataset dialogsum     # secondary robustness check
+python src/rebuild_summaries.py                # rebuild summaries from raw logs
+python src/report.py                           # -> results/tables.md + charts
+python src/make_rating_sheet.py                # blinded expert rating sheet
 ```
 
 Useful flags:
@@ -183,10 +214,18 @@ CLAUDE.md                original project brief
   cross-provider ROUGE-L of 0.639 — substantially different wording — while
   scoring within 0.002 of each other against the reference.
 - Datasets: Banking77 via `legacy-datasets/banking77` (test split, seed-42
-  shuffle, first 1,000); summarization via `knkarthick/dialogsum` (test split,
-  seed-42 shuffle, first 100). TweetSumm was unavailable (gated *and*
-  script-based); DialogSum is general-domain dialogue, **not** customer support,
-  which is a stated limitation.
+  shuffle, first 1,000). Summarization primary: **TweetSumm** test split
+  (110 dialogues, all 1,152 referenced tweet IDs resolved, seed-42 shuffle,
+  first 100), reconstructed locally from tweet IDs + Kaggle `twcs.csv` using the
+  upstream `TweetSumProcessor`; the **first** of each dialogue's three human
+  abstractive annotations is the reference. Summarization secondary:
+  `knkarthick/dialogsum` (test split, seed-42 shuffle, first 100), retained as a
+  cross-domain robustness check — it is general-domain daily conversation, not
+  customer support.
+- **Licensing:** TweetSumm's dataset is CDLA-Sharing-1.0 and its tweet text
+  comes from Kaggle. This repository therefore contains **no** dialogue text,
+  no `twcs.csv`, and no summarization records derived from it — only the loader
+  and the IDs. Reproducers fetch the text from Kaggle themselves.
 - Moving aliases (`mistral-small-latest`, `gemini-flash-lite-latest`) may
   hot-swap. Concrete snapshots served during this run are recorded in
   `results/NOTES.md` §10 — cite those, not the aliases.

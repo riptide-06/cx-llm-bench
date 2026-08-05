@@ -24,7 +24,7 @@ Full-sample results (n = 1000 per condition). These are the only rows used for t
 Scored on a smaller subsample than the models above, so not directly comparable to them. The test set is shuffled with `Random(42)` *before* slicing, so a truncated run is a valid random subsample rather than a biased prefix — but its confidence interval is wider and it must be reported at its own n. Reasons:
 
 - `gemini/gemini-flash-lite-latest` — zero-shot intent only, at a reduced n (~459 of 1000); Gemini's free tier caps gemini-3.5-flash-lite at 500 requests/day, so the full workload needs 4+ days. The completed calls are a valid seed-42 random subsample.
-- `groq/llama-3.1-8b-instant` — zero-shot intent (full n=1000) plus full summarization; few-shot omitted. Groq's free tier meters this model at 6,000 tokens/min, and the ~645-token few-shot prompts drove it into a 429/backoff cascade at ~120s per call (~32h for the remaining 967). Zero-shot, at ~500 tokens, completed normally at full n and is gap-eligible.
+- `groq/llama-3.1-8b-instant` — zero-shot intent (full n=1000) plus full summarization; few-shot omitted. Groq's free tier meters this model at 500,000 tokens per DAY, and the 1000 zero-shot calls (~500 tokens each) consumed essentially all of it ("Limit 500000, Used 499554"), leaving nothing for the ~645-token few-shot prompts; the remaining 967 projected to ~32h of refill. Zero-shot completed at full n and is gap-eligible. See NOTES.md section 5.
 
 | model                           | category     | condition   |   n |   n_scored |   accuracy |   macro_f1 |   unparsed_rate |   error_rate |   n_calls |   billed_cost_per_1k |   median_latency_s |   priced_frac |   mean_input_tokens |   mean_output_tokens |   n_priced_calls |   list_cost_per_1k |
 |:--------------------------------|:-------------|:------------|----:|-----------:|-----------:|-----------:|----------------:|-------------:|----------:|---------------------:|-------------------:|--------------:|--------------------:|---------------------:|-----------------:|-------------------:|
@@ -36,7 +36,20 @@ Scored on a smaller subsample than the models above, so not directly comparable 
 | gemini/gemini-flash-lite-latest | proprietary  | zero_shot   | 487 |        459 |     0.7974 |     0.7749 |          0      |       0.0575 |       459 |               0.0675 |              0.482 |             1 |               500.3 |                  3.8 |              459 |             0.1596 |
 
 
-## Summarization (dialogsum)
+## Summarization — TweetSumm (PRIMARY, in-domain customer support)
+
+| model                                               | category     |   rouge1 |   rouge2 |   rougeL |   n_scored |   error_rate |   n_calls |   billed_cost_per_1k |   median_latency_s |   priced_frac |   mean_input_tokens |   mean_output_tokens |   n_priced_calls |   list_cost_per_1k |
+|:----------------------------------------------------|:-------------|---------:|---------:|---------:|-----------:|-------------:|----------:|---------------------:|-------------------:|--------------:|--------------------:|---------------------:|-----------------:|-------------------:|
+| groq/llama-3.1-8b-instant                           | open-weights |   0.3007 |   0.0834 |   0.2069 |        100 |            0 |       100 |               0      |              0.548 |             0 |               376.9 |                 99.8 |              100 |             0.0268 |
+| mistral/mistral-small-latest                        | open-weights |   0.2999 |   0.0691 |   0.2053 |        100 |            0 |       100 |               0.0407 |              1.258 |             1 |               377   |                 93.8 |              100 |             0.1128 |
+| together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo | open-weights |   0.3086 |   0.0874 |   0.2198 |        100 |            0 |       100 |               0.4592 |              1.256 |             1 |               376.9 |                 97.3 |              100 |             0.4932 |
+| claude-haiku-4-5-20251001                           | proprietary  |   0.2994 |   0.0716 |   0.206  |        100 |            0 |       100 |               0.937  |              1.98  |             1 |               394.4 |                 93.5 |              100 |             0.8618 |
+| claude-sonnet-5                                     | proprietary  |   0.2945 |   0.0661 |   0.2028 |        100 |            0 |       100 |               2.7712 |              3.421 |             1 |               394.4 |                101.5 |              100 |             1.8039 |
+
+
+## Summarization — dialogsum (SECONDARY, cross-domain robustness check)
+
+_DialogSum is general-domain daily conversation, not contact center data. It is reported as a robustness check on whether the TweetSumm ordering holds out of domain — not as the headline summarization result._
 
 | model                                               | category     |   rouge1 |   rouge2 |   rougeL |   n_scored |   error_rate |   n_calls |   billed_cost_per_1k |   median_latency_s |   priced_frac |   mean_input_tokens |   mean_output_tokens |   n_priced_calls |   list_cost_per_1k |
 |:----------------------------------------------------|:-------------|---------:|---------:|---------:|-----------:|-------------:|----------:|---------------------:|-------------------:|--------------:|--------------------:|---------------------:|-----------------:|-------------------:|
@@ -61,15 +74,18 @@ Scored on a smaller subsample than the models above, so not directly comparable 
 
 > **These gaps are an UPPER BOUND on the true full-precision gap.** The 70B was served FP8-quantized (Together's non-quantized build is not serverless on this account), and quantization can only depress the open-weights score. Since `gap = proprietary - open`, a depressed `open` inflates the gap: `gap_measured >= gap_true`. FP8 can overstate the gap, never understate it. The small-model skew on the open side (NOTES.md §3) pushes the same direction, so the two caveats compound. Quote these figures with the upper-bound qualifier attached.
 
-| task                      | condition   | metric   | best_open                                           |   open_score |   open_list_cost_per_1k | best_proprietary   |   prop_score |   prop_list_cost_per_1k |   abs_gap |   rel_gap_pct |
-|:--------------------------|:------------|:---------|:----------------------------------------------------|-------------:|------------------------:|:-------------------|-------------:|------------------------:|----------:|--------------:|
-| intent (Banking77)        | few_shot    | accuracy | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.757  |                  0.6515 | claude-sonnet-5    |       0.811  |                  1.6772 |    0.054  |          6.66 |
-| intent (Banking77)        | few_shot    | macro_f1 | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.7253 |                  0.6515 | claude-sonnet-5    |       0.7931 |                  1.6772 |    0.0678 |          8.55 |
-| intent (Banking77)        | zero_shot   | accuracy | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.746  |                  0.5246 | claude-sonnet-5    |       0.807  |                  1.394  |    0.061  |          7.56 |
-| intent (Banking77)        | zero_shot   | macro_f1 | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.7144 |                  0.5246 | claude-sonnet-5    |       0.798  |                  1.394  |    0.0836 |         10.48 |
-| summarization (dialogsum) | -           | rougeL   | mistral/mistral-small-latest                        |       0.169  |                  0.0846 | claude-sonnet-5    |       0.1615 |                  1.3712 |   -0.0075 |         -4.64 |
-| summarization (dialogsum) | -           | rouge1   | mistral/mistral-small-latest                        |       0.2327 |                  0.0846 | claude-sonnet-5    |       0.2257 |                  1.3712 |   -0.007  |         -3.1  |
-| summarization (dialogsum) | -           | rouge2   | mistral/mistral-small-latest                        |       0.0633 |                  0.0846 | claude-sonnet-5    |       0.0631 |                  1.3712 |   -0.0002 |         -0.32 |
+| task                                 | condition   | metric   | best_open                                           |   open_score |   open_list_cost_per_1k | best_proprietary          |   prop_score |   prop_list_cost_per_1k |   abs_gap |   rel_gap_pct |
+|:-------------------------------------|:------------|:---------|:----------------------------------------------------|-------------:|------------------------:|:--------------------------|-------------:|------------------------:|----------:|--------------:|
+| intent (Banking77)                   | few_shot    | accuracy | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.757  |                  0.6515 | claude-sonnet-5           |       0.811  |                  1.6772 |    0.054  |          6.66 |
+| intent (Banking77)                   | few_shot    | macro_f1 | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.7253 |                  0.6515 | claude-sonnet-5           |       0.7931 |                  1.6772 |    0.0678 |          8.55 |
+| intent (Banking77)                   | zero_shot   | accuracy | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.746  |                  0.5246 | claude-sonnet-5           |       0.807  |                  1.394  |    0.061  |          7.56 |
+| intent (Banking77)                   | zero_shot   | macro_f1 | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.7144 |                  0.5246 | claude-sonnet-5           |       0.798  |                  1.394  |    0.0836 |         10.48 |
+| summarization (TweetSumm)            | -           | rougeL   | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.2198 |                  0.4932 | claude-haiku-4-5-20251001 |       0.206  |                  0.8618 |   -0.0138 |         -6.7  |
+| summarization (TweetSumm)            | -           | rouge1   | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.3086 |                  0.4932 | claude-haiku-4-5-20251001 |       0.2994 |                  0.8618 |   -0.0092 |         -3.07 |
+| summarization (TweetSumm)            | -           | rouge2   | together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo |       0.0874 |                  0.4932 | claude-haiku-4-5-20251001 |       0.0716 |                  0.8618 |   -0.0158 |        -22.07 |
+| summarization (dialogsum, secondary) | -           | rougeL   | mistral/mistral-small-latest                        |       0.169  |                  0.0846 | claude-sonnet-5           |       0.1615 |                  1.3712 |   -0.0075 |         -4.64 |
+| summarization (dialogsum, secondary) | -           | rouge1   | mistral/mistral-small-latest                        |       0.2327 |                  0.0846 | claude-sonnet-5           |       0.2257 |                  1.3712 |   -0.007  |         -3.1  |
+| summarization (dialogsum, secondary) | -           | rouge2   | mistral/mistral-small-latest                        |       0.0633 |                  0.0846 | claude-sonnet-5           |       0.0631 |                  1.3712 |   -0.0002 |         -0.32 |
 
 
 ## Cost basis

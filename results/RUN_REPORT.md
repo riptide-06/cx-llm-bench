@@ -1,9 +1,10 @@
 # RUN REPORT — CX-LLM-Bench
 
-**Date:** 2026-07-31, with Sonnet's few-shot arm completed 2026-08-01
+**Date:** 2026-07-31; Sonnet few-shot completed 2026-08-01; summarization re-run
+on TweetSumm 2026-08-04/05
 **Outcome:** **Complete.** All configured models finished their declared scope;
 every acceptance-criteria artifact exists.
-**Total actual cost: $7.2013. Total API calls: 10,156 unique.**
+**Total actual cost: $7.6221. Total API calls: 10,656 unique.**
 
 ---
 
@@ -11,15 +12,18 @@ every acceptance-criteria artifact exists.
 
 | Model | Calls | Errors | Billed | Median latency |
 |---|---:|---:|---:|---:|
-| `claude-haiku-4-5-20251001` | 2,100 | 0 | $1.6234 | 0.687 s |
-| `mistral/mistral-small-latest` | 2,100 | 0 | $0.0115 | 0.541 s |
-| `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` | 2,100 | 0 | $1.1159 | 0.589 s |
-| `claude-sonnet-5` | 2,100 | 0 | $4.4160 | 1.253 s |
-| `groq/llama-3.1-8b-instant` | 1,134 | 1 | $0.0000 | 0.294 s |
+| `claude-haiku-4-5-20251001` | 2,200 | 0 | $1.7171 | 0.699 s |
+| `mistral/mistral-small-latest` | 2,200 | 0 | $0.0156 | 0.548 s |
+| `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` | 2,200 | 0 | $1.1619 | 0.611 s |
+| `claude-sonnet-5` | 2,200 | 0 | $4.6931 | 1.278 s |
+| `groq/llama-3.1-8b-instant` | 1,234 | 1 | $0.0000 | 0.304 s |
 | `gemini/gemini-flash-lite-latest` | 495 | 28 | $0.0317 | 0.482 s |
 | `groq/llama-3.3-70b-versatile` *(baseline)* | 117 | 0 | $0.0000 | 0.608 s |
 | `gemini/gemini-flash-latest` *(excluded, smoke only)* | 10 | 0 | $0.0028 | 1.003 s |
-| **TOTAL** | **10,156** | **29** | **$7.2013** | |
+| **TOTAL** | **10,656** | **29** | **$7.6221** | |
+
+The TweetSumm re-run added **500 calls for $0.4208** (5 models x 100 dialogues,
+**zero errors**), against a $3 budget for that step.
 
 Budget: **$7.20**, which **exceeds the $6 ceiling** that was in force during the
 main run. That was deliberate and user-directed: on 2026-08-01 the user added
@@ -82,7 +86,8 @@ supplementary rows.
 | Intent, few-shot | llama-3.3-70B 0.757 | sonnet-5 **0.811** | 0.054 | **6.66%** |
 | Intent, zero-shot (macro-F1) | llama-3.3-70B 0.7144 | sonnet-5 **0.798** | 0.0836 | **10.48%** |
 | Intent, few-shot (macro-F1) | llama-3.3-70B 0.7253 | sonnet-5 **0.7931** | 0.0678 | **8.55%** |
-| Summarization, ROUGE-L | mistral **0.169** | sonnet-5 0.1615 | −0.0075 | **−4.64%** |
+| **Summarization — TweetSumm (primary)**, ROUGE-L | llama-3.3-70B **0.2198** | haiku-4.5 0.2060 | −0.0138 | **−6.70%** |
+| Summarization — DialogSum (secondary), ROUGE-L | mistral **0.169** | sonnet-5 0.1615 | −0.0075 | **−4.64%** |
 
 At published list prices the open side is ~2.7x cheaper on intent ($0.52 vs
 $1.39 per 1,000 zero-shot queries; $0.65 vs $1.68 few-shot).
@@ -97,6 +102,22 @@ most. Worth reporting both rather than accuracy alone.
 **Few-shot helps both sides but does not close the gap** — it lifts the 70B
 from 0.746 to 0.757 and Sonnet from 0.807 to 0.811, so the gap narrows only
 from 7.56% to 6.66%. Prompt engineering is not a substitute for model tier here.
+
+**Summarization inverts the gap, and on the primary corpus it is statistically
+real.** On TweetSumm — genuine customer-support dialogue — the best open-weights
+model beats the best proprietary one by **+0.0138 ROUGE-L, 95% CI
+[+0.0034, +0.0240], p≈0.009** (paired bootstrap, 10,000 resamples over the 100
+shared dialogues). The interval excludes zero. On DialogSum the same comparison
+gives **+0.0074, 95% CI [−0.0052, +0.0201], p≈0.245** — within noise. So
+"summarization differences are within noise" is true out-of-domain and **false
+in-domain**; do not state it as a blanket claim. Full detail in NOTES.md §11.
+
+**The summarization ranking does not transfer across domains.**
+`llama-3.3-70B` is 1st of 6 on TweetSumm (0.2198) and last on DialogSum
+(0.1416); `mistral-small` is 1st on DialogSum and 4th on TweetSumm. Since
+DialogSum's own top-2 difference is not significant, some of that reshuffle is
+noise — but the 70B's movement far exceeds the DialogSum interval. Treat
+ROUGE-based summarization rankings as corpus-specific.
 
 **These gaps are an UPPER BOUND.** The 70B was served FP8-quantized, which can
 only depress the open score, and `gap = proprietary − open`, so the measured
@@ -257,11 +278,26 @@ The Gemini alias does not report its own version through litellm or the raw
 logs — `gemini-3.5-flash-lite` comes from the `modelVersion` field in the raw
 API response. Aliases can hot-swap under a rerun.
 
-Datasets: Banking77 via `legacy-datasets/banking77` (test 3,080 → seed-42
-shuffle → first 1,000); summarization via `knkarthick/dialogsum` test split
-(1,500 → seed-42 shuffle → first 100). TweetSumm was unavailable (gated *and*
-script-based); DialogSum is the CLAUDE.md-sanctioned fallback and is
-general-domain dialogue, **not** customer support — name that in Limitations.
+**Datasets.** Banking77 via `legacy-datasets/banking77` (test 3,080 → seed-42
+shuffle → first 1,000).
+
+Summarization uses two corpora:
+
+- **PRIMARY — TweetSumm** (<https://github.com/guyfe/Tweetsumm>), test split:
+  110 dialogues referencing 1,152 tweet IDs, **all 1,152 resolved, 0 dialogues
+  dropped**; seed-42 shuffle → first 100. Reconstructed locally from tweet IDs
+  plus Kaggle's `twcs.csv` using the upstream `TweetSumProcessor`. Reference =
+  the **first** of three human abstractive annotations, sentences joined.
+  Genuine customer-support dialogue, so this is the in-domain measurement.
+  **Licensing:** dataset is CDLA-Sharing-1.0 with text sourced from Kaggle, so
+  no dialogue text, `twcs.csv`, or derived summarization records are in the
+  public repo — only the loader and IDs.
+- **SECONDARY — DialogSum** (`knkarthick/dialogsum`), test split, seed-42
+  shuffle → first 100. General-domain daily conversation, retained as a
+  cross-domain robustness check on whether the model ordering is
+  corpus-specific. Originally the primary corpus, when TweetSumm was
+  unavailable (gated *and* script-based via DialogStudio).
+
 Determinism: `temperature=0`, `seed=42` where the provider accepts it.
 
 ---
@@ -274,11 +310,14 @@ Determinism: `temperature=0`, `seed=42` where the provider accepts it.
    second-vendor corroboration) and by tier-scaling symmetry (8B→24B→70B
    against Haiku→Sonnet).
 2. **The 70B ran FP8-quantized**, so the reported gap is an upper bound.
-3. **DialogSum is not contact-center data.** ROUGE-L is 0.14–0.17 for every
-   model, which mostly reflects a style mismatch between the 2–3 sentence
-   handoff summary the prompt requests and DialogSum's terse references. The
-   summarization result — open-weights ahead by 4.6% — should **not** be
-   claimed on ROUGE alone; that is what the expert rating sheet is for.
+3. **Summarization is still ROUGE-based, and ROUGE is weak here.** The primary
+   corpus is now TweetSumm (real customer support), which removes the earlier
+   domain-mismatch objection — but ROUGE still rewards surface overlap rather
+   than whether a summary is *usable at agent handoff*, and each dialogue has
+   three human references while only the first is scored against. Multi-
+   reference ROUGE would be strictly better and is available in the raw
+   annotations; it is not implemented here. The blinded expert rating sheet,
+   now built from TweetSumm, remains the instrument for the usability claim.
 4. **`llama-3.1-8b` lacks few-shot** (Groq token-rate cap), so it contributes
    to zero-shot only. Both proprietary models and both larger open models ran
    the full workload, so the headline gap is unaffected.

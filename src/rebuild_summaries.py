@@ -83,8 +83,8 @@ def rebuild_intent():
     return dict(out)
 
 
-def rebuild_summ():
-    rows = _dedupe("summ", ("model", "id"))
+def rebuild_summ(raw_name="summ", dataset_label="dialogsum"):
+    rows = _dedupe(raw_name, ("model", "id"))
     scorer = rouge_scorer.RougeScorer(["rouge1", "rouge2", "rougeL"],
                                       use_stemmer=True)
     per = defaultdict(lambda: {"rouge1": [], "rouge2": [], "rougeL": [],
@@ -111,26 +111,36 @@ def rebuild_summ():
             "error_rate": round(s["err"] / s["n"], 4) if s["n"] else None,
         }
     n_dialogues = max((v["n_scored"] for v in models.values()), default=0)
-    return {"dataset": "dialogsum", "n_dialogues": n_dialogues,
+    return {"dataset": dataset_label, "n_dialogues": n_dialogues,
             "models": models}, outputs
 
 
 def main():
     intent = rebuild_intent()
-    summ, outputs = rebuild_summ()
     RES.mkdir(parents=True, exist_ok=True)
     (RES / "intent_summary.json").write_text(json.dumps(intent, indent=2))
-    (RES / "summ_summary.json").write_text(json.dumps(summ, indent=2))
-    (RES / "summ_outputs.json").write_text(json.dumps(outputs, indent=2))
 
     print("intent_summary.json:")
     for m, c in sorted(intent.items()):
         for cond, v in sorted(c.items()):
             print(f"  {m[:44]:44s} {cond:10s} n={v['n']:5d} acc={v['accuracy']}")
-    print("summ_summary.json:")
-    for m, v in sorted(summ["models"].items()):
-        print(f"  {m[:44]:44s} n={v['n_scored']:4d} rougeL={v['rougeL']}")
-    print(f"summ_outputs.json: {len(outputs)} rows")
+
+    # Both summarization corpora: TweetSumm is the primary result (in-domain
+    # customer support), DialogSum the secondary cross-domain robustness check.
+    for raw_name, label, summ_file, out_file in (
+            ("summ_tweetsumm", "TweetSumm",
+             "summ_tweetsumm_summary.json", "tweetsumm_outputs.json"),
+            ("summ", "dialogsum", "summ_summary.json", "summ_outputs.json")):
+        if not (RAW / f"{raw_name}.jsonl").exists():
+            print(f"{summ_file}: (no raw log, skipped)")
+            continue
+        summ, outputs = rebuild_summ(raw_name, label)
+        (RES / summ_file).write_text(json.dumps(summ, indent=2))
+        (RES / out_file).write_text(json.dumps(outputs, indent=2))
+        print(f"{summ_file}  [{label}]:")
+        for m, v in sorted(summ["models"].items()):
+            print(f"  {m[:44]:44s} n={v['n_scored']:4d} rougeL={v['rougeL']}")
+        print(f"  -> {out_file}: {len(outputs)} rows")
 
 
 if __name__ == "__main__":

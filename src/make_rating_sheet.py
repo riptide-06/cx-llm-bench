@@ -56,12 +56,20 @@ COLUMNS = ["sample_id", "dialogue", "model", "summary", "usefulness_1to5",
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=40, help="total summaries to sample")
+    # TweetSumm is the primary corpus: it is genuine customer-support dialogue,
+    # so an expert judging "would I trust this in a handoff?" is judging the
+    # actual task. DialogSum (general daily conversation) is the wrong material
+    # for that question and is only a secondary robustness check.
+    ap.add_argument("--source", default="tweetsumm",
+                    choices=["tweetsumm", "dialogsum"])
     args = ap.parse_args()
 
-    src = RES / "summ_outputs.json"
+    src = RES / ("tweetsumm_outputs.json" if args.source == "tweetsumm"
+                 else "summ_outputs.json")
     if not src.exists():
         raise SystemExit(f"{src} not found — run src/run_summ.py first.")
     outputs = json.loads(src.read_text())
+    print(f"Source corpus: {args.source} ({src.name})")
 
     keep, dropped = eligible_models(outputs)
     if dropped:
@@ -100,9 +108,17 @@ def main():
         rng.shuffle(leftovers)
         picked.extend(leftovers[:args.n - len(picked)])
 
-    # blinding: stable pseudonyms assigned in seeded-shuffled model order
+    # Blinding: pseudonyms assigned from a SEPARATE, corpus-dependent seed.
+    #
+    # Why not reuse `rng`: with the same seed and the same model list, a
+    # regenerated sheet reproduces the *same* code->model mapping. If a rater
+    # had already formed impressions of "model_A" from a superseded sheet,
+    # identical codes would carry those impressions into the new round. Keying
+    # the blinding on the corpus re-randomizes it whenever the source changes,
+    # while sample selection stays on seed 42 and remains reproducible.
+    blind_rng = random.Random(f"blinding-{SEED}-{args.source}")
     shuffled = models[:]
-    rng.shuffle(shuffled)
+    blind_rng.shuffle(shuffled)
     code = {m: f"model_{chr(ord('A') + i)}" for i, m in enumerate(shuffled)}
 
     rng.shuffle(picked)  # so the rater sees no model ordering
