@@ -18,7 +18,10 @@ costs in task performance. Six models — two proprietary (Claude Haiku 4.5,
 Claude Sonnet 5) and three open-weights (Llama-3.3-70B, Mistral Small,
 Llama-3.1-8B), plus a capped Gemini subsample — were evaluated on **intent
 classification** (Banking77, n=1,000, zero-shot *and* few-shot k=5) and
-**conversation summarization** (DialogSum, n=100), across **10,156 API calls**.
+**conversation summarization** — primary corpus **TweetSumm** (n=100, real
+customer-support dialogue, reconstructed from the official repo plus Kaggle's
+`twcs.csv`), with **DialogSum** (n=100) retained as an out-of-domain robustness
+check. **10,656 API calls, $7.62 total at measured billing.**
 
 The best open-weights model trails the best proprietary model by **7.56%
 relative accuracy zero-shot** and **6.66% few-shot** (10.48% / 8.55% on
@@ -190,7 +193,7 @@ results/NOTES.md         Methods-level detail: datasets, model IDs, rate
                          limits, pricing provenance, threats to validity
 results/RUN_REPORT.md    cost, call counts, every substitution and failure
 results/charts/          accuracy-vs-cost, ROUGE-L-vs-cost, zero vs few-shot
-results/raw/             call-level record (10,156 calls) — the data artifact
+results/raw/             call-level record (10,656 calls) — the data artifact
 CLAUDE.md                original project brief
 ```
 
@@ -198,11 +201,18 @@ CLAUDE.md                original project brief
 
 - `cache/` — ~10k cached API responses, too heavy to commit and fully
   reproducible from the code. **Available on request.**
-- `results/expert_rating_sheet.csv` and its blinding key — human expert
-  evaluation is in progress; anonymized results will be added after review.
+- `results/expert_rating_sheet.csv` and its blinding key — the blinded human
+  expert evaluation is **complete**: a domain expert rated 40 TweetSumm
+  summaries (5 models x 8, usefulness 1–5 plus missing-critical-info and
+  would-trust-at-handoff judgements) without access to model identities.
+  **Anonymized per-model rating results will be added in a post-review commit.**
+  The sheet and its key stay held back so the raw per-sample judgements and the
+  code→model mapping are not published ahead of that write-up — and the sheet
+  additionally contains reconstructed dialogue text, which is license-restricted
+  regardless (see below).
 - `results/summ_outputs.json` and `results/raw/summ.jsonl` — **held back for the
   same reason**: both map each generated summary to the model that produced it,
-  which would de-blind the in-progress expert evaluation. Aggregate
+  which would de-blind the expert evaluation. Aggregate
   summarization metrics are public in `results/tables.md`; the per-call records
   are **available on request** and will be released with the rating results.
   `results/raw/intent.jsonl` (the 4,000-call intent record) is published in

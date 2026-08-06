@@ -33,8 +33,9 @@ cache/
 # build output rather than a result, so it is not part of the public record.
 results/run_logs/
 
-# Expert rating is still in progress. The sheet and its blinding key are held
-# back until review completes; anonymized results will be added afterwards.
+# The blinded expert rating is COMPLETE, but the filled-in sheet and its
+# code->model key stay held back until the anonymized per-model results are
+# written up and published in a post-review commit.
 # Glob, not exact names, so archived//variant sheets cannot slip through.
 # NOTE: the TweetSumm-based sheet also contains reconstructed dialogue text,
 # which is license-restricted (CDLA-Sharing-1.0, text sourced from Kaggle) and

@@ -319,14 +319,15 @@ Determinism: `temperature=0`, `seed=42` where the provider accepts it.
    second-vendor corroboration) and by tier-scaling symmetry (8B→24B→70B
    against Haiku→Sonnet).
 2. **The 70B ran FP8-quantized**, so the reported gap is an upper bound.
-3. **Summarization is still ROUGE-based, and ROUGE is weak here.** The primary
-   corpus is now TweetSumm (real customer support), which removes the earlier
-   domain-mismatch objection — but ROUGE still rewards surface overlap rather
-   than whether a summary is *usable at agent handoff*, and each dialogue has
-   three human references while only the first is scored against. Multi-
-   reference ROUGE would be strictly better and is available in the raw
-   annotations; it is not implemented here. The blinded expert rating sheet,
-   now built from TweetSumm, remains the instrument for the usability claim.
+3. **Summarization is still ROUGE-based, and ROUGE is weak here.** Two earlier
+   objections are now closed: the primary corpus is TweetSumm (real customer
+   support), removing the domain mismatch; and scoring is **multi-reference**
+   (max over ~3 human summaries), removing the single-annotator artifact. What
+   remains is intrinsic to ROUGE — it rewards surface overlap, not whether a
+   summary is *usable at agent handoff*. The blinded expert rating (40 TweetSumm
+   summaries, 5 models x 8, judged by a domain expert with no access to model
+   identities) is **complete** and is the instrument for that claim; its
+   anonymized per-model results will be added in a post-review commit.
 4. **`llama-3.1-8b` lacks few-shot** (Groq token-rate cap), so it contributes
    to zero-shot only. Both proprietary models and both larger open models ran
    the full workload, so the headline gap is unaffected.
