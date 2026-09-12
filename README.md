@@ -1,62 +1,26 @@
 # CX-LLM-Bench
 
-**Benchmarking open-weights vs. proprietary LLMs for privacy-constrained
-contact center automation**
+Benchmark code and results for the paper "Closing the Compliance Gap: Benchmarking Open-Weights and Proprietary Large Language Models for Privacy-Constrained Contact Center Automation". First author; under review at the NeurIPS 2026 Workshop on AI Privacy (InfPriv).
 
-Reproducibility artifact for the paper *"Closing the Compliance Gap:
-Benchmarking Open-Weights vs. Proprietary LLMs for Privacy-Constrained Contact
-Center Automation"* (in preparation, target: *Computers*, MDPI).
+## What it is
 
----
+Healthcare and other privacy-constrained enterprises often cannot send customer conversations to a proprietary API, which restricts them to self-hostable open-weights models. This benchmark measures what that restriction costs in task performance. Six models (two proprietary, three open-weights, plus a capped Gemini subsample) were evaluated on intent classification (Banking77, zero-shot and few-shot with k=5) and conversation summarization (TweetSumm as the primary corpus of real customer-support dialogue, DialogSum as an out-of-domain check). Every call is cached on (model, prompt, max_tokens), so reruns are free and interrupted runs resume where they stopped.
 
-## Summary
+## What I built
 
-Healthcare and other privacy-constrained enterprises often cannot send customer
-conversations to a proprietary API, restricting them to self-hostable
-open-weights models. This benchmark measures what that restriction actually
-costs in task performance. Six models — two proprietary (Claude Haiku 4.5,
-Claude Sonnet 5) and three open-weights (Llama-3.3-70B, Mistral Small,
-Llama-3.1-8B), plus a capped Gemini subsample — were evaluated on **intent
-classification** (Banking77, n=1,000, zero-shot *and* few-shot k=5) and
-**conversation summarization** — primary corpus **TweetSumm** (n=100, real
-customer-support dialogue, reconstructed from the official repo plus Kaggle's
-`twcs.csv`), with **DialogSum** (n=100) retained as an out-of-domain robustness
-check. **10,656 API calls, $7.62 total at measured billing.**
+The whole pipeline in `src/`: the runners for both tasks, the TweetSumm reconstruction loader, multi-reference ROUGE scoring, paired bootstrap confidence intervals, list-price cost accounting with sourced prices, a consistency check that serves the same open-weights model from two providers, the report generator, and the blinded expert rating sheet. `results/` holds the aggregate tables, charts, run report, methods notes, and the full 4,000-call intent record.
 
-The best open-weights model trails the best proprietary model by **7.56%
-relative accuracy zero-shot** and **6.66% few-shot** (10.48% / 8.55% on
-macro-F1, which weights Banking77's 77 classes equally and is arguably the more
-decision-relevant metric for routing). At published API list prices the
-open-weights side is **~2.7x cheaper** ($0.52 vs $1.39 per 1,000 zero-shot
-queries).
+## How it was built and verified
 
-**On summarization the ordering inverts.** On TweetSumm — genuine
-customer-support dialogue, scored **multi-reference** (max over its ~3 human
-summaries per dialogue) — Llama-3.3-70B *beats* the best proprietary model by
-**8.26% relative ROUGE-L** (0.2738 vs 0.2529). A paired bootstrap (10,000
-resamples over the 100 shared dialogues) puts that at **+0.0209, 95% CI
-[+0.0099, +0.0316], p≈0.000** — the interval excludes zero, so it is not noise.
-The result holds under single-reference scoring too (+0.0138, p≈0.009) and gets
-*stronger* multi-reference, so it is not an artifact of the metric choice.
+Built by orchestrating coding agents: `CLAUDE.md` is the brief the agent worked from, phased so that a smoke test and a cost estimate came back for approval before any full run. Verified by smoke tests with `--limit` before every full run; paired bootstrap confidence intervals (10,000 resamples) on every headline comparison, reported in `results/NOTES.md`; the cross-provider consistency check; and a blinded human expert rating of 40 TweetSumm summaries, whose sheet and key are held back until the anonymized results are released.
 
-The same comparison on DialogSum (general-domain, secondary, single-reference)
-gives **+0.0074, 95% CI [−0.0052, +0.0201], p≈0.245** — *within* noise. So
-summarization rankings here are **corpus-specific** and do not transfer across
-domains; Llama-3.3-70B is 1st of 6 on TweetSumm and last on DialogSum. See
-`results/NOTES.md` §11.
+## Headline results
 
-**These gaps are upper bounds.** The 70B was served FP8-quantized, and
-quantization can only depress the open-weights score; since
-`gap = proprietary − open`, a depressed `open` inflates the gap. FP8 can
-overstate the gap, never understate it.
+On intent classification the best open-weights model trails the best proprietary model by 7.56% relative accuracy zero-shot and 6.66% few-shot, at roughly 2.7x lower list price per thousand queries. On TweetSumm summarization the ordering inverts: Llama-3.3-70B beats the best proprietary model by 8.26% relative ROUGE-L, and the paired bootstrap interval excludes zero. The same comparison on DialogSum is within noise, so summarization rankings are corpus-specific. The whole benchmark took 10,656 API calls and $7.62 at measured billing. Because the 70B model was served FP8-quantized, the reported gaps are upper bounds.
 
-Full results: [`results/tables.md`](results/tables.md) ·
-Methods-level detail: [`results/NOTES.md`](results/NOTES.md) ·
-Run provenance and cost: [`results/RUN_REPORT.md`](results/RUN_REPORT.md)
+Full results: [`results/tables.md`](results/tables.md). Methods detail: [`results/NOTES.md`](results/NOTES.md). Provenance and cost: [`results/RUN_REPORT.md`](results/RUN_REPORT.md).
 
 ![accuracy vs cost](results/charts/accuracy_vs_cost.png)
-
----
 
 ## Quickstart
 
@@ -70,7 +34,7 @@ cp .env.example .env      # then fill in your API keys
 ### Getting the summarization data (required for the primary result)
 
 The primary summarization corpus is **TweetSumm**, which distributes only tweet
-**IDs** — the tweet **text** must come from Kaggle. That is a licensing
+**IDs**: the tweet **text** must come from Kaggle. That is a licensing
 requirement (CDLA-Sharing-1.0), so this repository ships the loader and nothing
 else; no dialogue text is redistributed here.
 
@@ -90,7 +54,7 @@ and `vendor/` are gitignored. The secondary DialogSum corpus downloads
 automatically from the Hub and needs no setup.
 
 Keys are read from `.env` by `src/common.py`. **A key exported in your
-interactive shell will not reach a spawned run** — put it in `.env`.
+interactive shell will not reach a spawned run**: put it in `.env`.
 
 Run in this order:
 
@@ -105,10 +69,10 @@ python src/make_rating_sheet.py                # blinded expert rating sheet
 
 Useful flags:
 
-- `--limit N` — smoke-test with a small sample
-- `--models a,b` — run a subset; **each model should run in its own process**,
+- `--limit N`: smoke-test with a small sample
+- `--models a,b`: run a subset; **each model should run in its own process**,
   because rate limiting is per-model *within* a process (see below)
-- `--conditions zero_shot` (intent only) — run one condition when the budget
+- `--conditions zero_shot` (intent only): run one condition when the budget
   cannot cover both
 
 Every call is cached in `cache/` keyed on `(model, prompt, max_tokens)`, so
@@ -136,7 +100,7 @@ Limit 500000, Used 499554, Requested 684.
 ```
 
 Groq's free tier meters that model at **500,000 tokens per day**. The zero-shot
-arm — 1,000 calls at ~500 prompt tokens — had spent essentially the entire daily
+arm (1,000 calls at ~500 prompt tokens) had spent essentially the entire daily
 budget. The slow crawl afterwards was the bucket *refilling* at ~5.8 tokens/sec,
 not backoff thrash. **No per-request delay recovers a budget that is already
 spent.**
@@ -150,7 +114,7 @@ What to actually do:
    first consumed the whole day.
 3. **Per-minute pacing is a separate constraint.** Both matter; don't conflate
    them. Read the `x-ratelimit-*` response headers rather than trusting the
-   client library — daily caps in particular are often absent from it.
+   client library: daily caps in particular are often absent from it.
 
 Two related traps documented in `results/NOTES.md`:
 
@@ -178,7 +142,7 @@ Two caveats worth repeating:
   privacy-constrained enterprise trades against, and none are on this axis.
 - Client-library price tables can be stale. Three of six models were mispriced
   in the bundled table of the version used (one by 3x/6.25x); all prices here
-  were verified against vendor pages. **Re-derive before reusing** — one model's
+  were verified against vendor pages. **Re-derive before reusing**: one model's
   rate was introductory pricing with a known expiry.
 
 ---
@@ -193,32 +157,32 @@ results/NOTES.md         Methods-level detail: datasets, model IDs, rate
                          limits, pricing provenance, threats to validity
 results/RUN_REPORT.md    cost, call counts, every substitution and failure
 results/charts/          accuracy-vs-cost, ROUGE-L-vs-cost, zero vs few-shot
-results/raw/             call-level record (10,656 calls) — the data artifact
+results/raw/             call-level record (10,656 calls): the data artifact
 CLAUDE.md                original project brief
 ```
 
 **Not in this repository:**
 
-- `cache/` — ~10k cached API responses, too heavy to commit and fully
+- `cache/`: ~10k cached API responses, too heavy to commit and fully
   reproducible from the code. **Available on request.**
-- `results/expert_rating_sheet.csv` and its blinding key — the blinded human
+- `results/expert_rating_sheet.csv` and its blinding key: the blinded human
   expert evaluation is **complete**: a domain expert rated 40 TweetSumm
-  summaries (5 models x 8, usefulness 1–5 plus missing-critical-info and
+  summaries (5 models x 8, usefulness 1-5 plus missing-critical-info and
   would-trust-at-handoff judgements) without access to model identities.
   **Anonymized per-model rating results will be added in a post-review commit.**
   The sheet and its key stay held back so the raw per-sample judgements and the
-  code→model mapping are not published ahead of that write-up — and the sheet
+  code→model mapping are not published ahead of that write-up, and the sheet
   additionally contains reconstructed dialogue text, which is license-restricted
   regardless (see below).
-- `results/summ_outputs.json` and `results/raw/summ.jsonl` — **held back for the
+- `results/summ_outputs.json` and `results/raw/summ.jsonl`: **held back for the
   same reason**: both map each generated summary to the model that produced it,
   which would de-blind the expert evaluation. Aggregate
   summarization metrics are public in `results/tables.md`; the per-call records
   are **available on request** and will be released with the rating results.
   `results/raw/intent.jsonl` (the 4,000-call intent record) is published in
-  full — it carries no blinding concern.
-- `results/run_logs/` — raw provider stdout, build noise rather than results.
-- `paper/` — manuscript draft, held back until authorship is finalized.
+  full, since it carries no blinding concern.
+- `results/run_logs/`: raw provider stdout, build noise rather than results.
+- `paper/`: manuscript draft, held back until authorship is finalized.
 
 ---
 
@@ -227,7 +191,7 @@ CLAUDE.md                original project brief
 - `temperature=0` and `seed=42` throughout (with `drop_params` for providers
   that reject `seed`). Determinism is *not* guaranteed across providers: the
   same open-weights model served by two hosts produced summaries with a
-  cross-provider ROUGE-L of 0.639 — substantially different wording — while
+  cross-provider ROUGE-L of 0.639 (substantially different wording) while
   scoring within 0.002 of each other against the reference.
 - Datasets: Banking77 via `legacy-datasets/banking77` (test split, seed-42
   shuffle, first 1,000). Summarization primary: **TweetSumm** test split
@@ -236,15 +200,15 @@ CLAUDE.md                original project brief
   upstream `TweetSumProcessor`; the **first** of each dialogue's three human
   abstractive annotations is the reference. Summarization secondary:
   `knkarthick/dialogsum` (test split, seed-42 shuffle, first 100), retained as a
-  cross-domain robustness check — it is general-domain daily conversation, not
+  cross-domain robustness check: it is general-domain daily conversation, not
   customer support.
 - **Licensing:** TweetSumm's dataset is CDLA-Sharing-1.0 and its tweet text
   comes from Kaggle. This repository therefore contains **no** dialogue text,
-  no `twcs.csv`, and no summarization records derived from it — only the loader
+  no `twcs.csv`, and no summarization records derived from it: only the loader
   and the IDs. Reproducers fetch the text from Kaggle themselves.
 - Moving aliases (`mistral-small-latest`, `gemini-flash-lite-latest`) may
   hot-swap. Concrete snapshots served during this run are recorded in
-  `results/NOTES.md` §10 — cite those, not the aliases.
+  `results/NOTES.md` §10: cite those, not the aliases.
 - Sample sizes were reduced from 1,500/120 to 1,000/100 to fit free-tier daily
   request caps. The reduction is cache-safe: the test split is shuffled *before*
   slicing, so the smaller set is a valid random subsample.
@@ -254,16 +218,16 @@ CLAUDE.md                original project brief
 ## Citation
 
 ```bibtex
-@article{nagaraju2026compliancegap,
-  title   = {Closing the Compliance Gap: Benchmarking Open-Weights vs.
-             Proprietary LLMs for Privacy-Constrained Contact Center Automation},
+@misc{nagaraju2026compliancegap,
+  title   = {Closing the Compliance Gap: Benchmarking Open-Weights and Proprietary
+             Large Language Models for Privacy-Constrained Contact Center Automation},
   author  = {Nagaraju, Tarun and others},
-  journal = {Computers},
   year    = {2026},
-  note    = {In preparation. Artifact: https://github.com/riptide-06/cx-llm-bench}
+  note    = {Under review at the NeurIPS 2026 Workshop on AI Privacy (InfPriv).
+             Artifact: https://github.com/riptide-06/cx-llm-bench}
 }
 ```
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
